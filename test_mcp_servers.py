@@ -7,11 +7,11 @@ import json
 import os
 import sys
 import time
-from typing import List, Optional
 
 import dotenv
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+
 __test__ = False  # Prevent pytest from collecting this standalone test script
 # Load environment variables
 dotenv.load_dotenv()
@@ -25,16 +25,16 @@ RPC_PASSWORD = os.getenv("RPC_PASSWORD")
 @dataclass
 class TestContext:
     """Shared context for discovered runtime data."""
-    tokens: List[str] = field(default_factory=list)
+    tokens: list[str] = field(default_factory=list)
     maker: str = "BLOCK"
     taker: str = "LTC"
-    order_ids: List[str] = field(default_factory=list)
+    order_ids: list[str] = field(default_factory=list)
     block_chain: str = "BLOCK"
-    block_height: Optional[int] = None
-    block_hash: Optional[str] = None
-    utxos: List[dict] = field(default_factory=list)
-    address: Optional[str] = None
-    errors: List[str] = field(default_factory=list)
+    block_height: int | None = None
+    block_hash: str | None = None
+    utxos: list[dict] = field(default_factory=list)
+    address: str | None = None
+    errors: list[str] = field(default_factory=list)
 
 
 def extract_result_data(result):
@@ -81,7 +81,7 @@ async def safe_call(session, tool_name, params, expected_type, context=None):
         print(f"    DEBUG: {tool_name} extracted data: {data} (type: {type(data).__name__})")
         
         if data is None:
-            return False, None, f"Empty response"
+            return False, None, "Empty response"
         
         # Type validation (dict, list, or any)
         if expected_type == "dict" and not isinstance(data, dict):
@@ -412,19 +412,19 @@ def print_summary(xbridge_results, xrouter_results):
     total_skip = xb_skip + xr_skip
     total = xb_total + xr_total
     
-    print(f"\nXBridge MCP Server:")
+    print("\nXBridge MCP Server:")
     print(f"  Total tools: {xb_total}")
     print(f"  Passed: {xb_pass}")
     print(f"  Failed: {xb_fail}")
     print(f"  Skipped: {xb_skip}")
     
-    print(f"\nXRouter MCP Server:")
+    print("\nXRouter MCP Server:")
     print(f"  Total tools: {xr_total}")
     print(f"  Passed: {xr_pass}")
     print(f"  Failed: {xr_fail}")
     print(f"  Skipped: {xr_skip}")
     
-    print(f"\nOVERALL:")
+    print("\nOVERALL:")
     print(f"  Total: {total}")
     print(f"  Passed: {total_pass} ({100*total_pass/total:.1f}%)")
     print(f"  Failed: {total_fail}")

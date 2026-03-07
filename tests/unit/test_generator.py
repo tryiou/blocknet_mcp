@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from scripts.generate.generator import DEFAULT_WRITE_PROTECTED, PREFIX_CONFIG, Generator
+from scripts.generate.generator import PREFIX_CONFIG, WRITE_PROTECTED, Generator
 from scripts.generate.parser import ApiSpec, parse_api_docs
 
 
@@ -126,6 +126,41 @@ class TestParseSampleParams:
         assert isinstance(result[3], bool)
         assert isinstance(result[4], int)
 
+    def test_parse_real_dxmakeorder_sample(self):
+        """Test with actual dxMakeOrder sample from docs - backward compatibility check"""
+        gen = Generator("path/to/docs.md", "dx", "/tmp/output")
+        sample = "blocknet-cli dxMakeOrder SYS 0.100 SVTbaYZ8oApVn3uNyimst3GKyvvfzXQgdK LTC 0.01 LVvFhzRoMRGTtGihHp7jVew3YoZRX8y35Z exact"
+        endpoint = type("obj", (object,), {"sample_request": sample})()
+        result = gen._parse_sample_params(endpoint)
+        # Numbers are converted to appropriate types (float for decimal, int for whole)
+        assert result == ["SYS", 0.1, "SVTbaYZ8oApVn3uNyimst3GKyvvfzXQgdK", "LTC", 0.01, "LVvFhzRoMRGTtGihHp7jVew3YoZRX8y35Z", "exact"]
+
+    def test_parse_real_dxflushcancelledorders_sample(self):
+        """Test with actual dxFlushCancelledOrders sample"""
+        gen = Generator("path/to/docs.md", "dx", "/tmp/output")
+        sample = "blocknet-cli dxFlushCancelledOrders 600000"
+        endpoint = type("obj", (object,), {"sample_request": sample})()
+        result = gen._parse_sample_params(endpoint)
+        assert result == [600000]
+        assert isinstance(result[0], int)
+
+    def test_parse_real_xrsendtransaction_sample(self):
+        """Test with actual xrSendTransaction sample"""
+        gen = Generator("path/to/docs.md", "xr", "/tmp/xr_output")
+        sample = "blocknet-cli xrSendTransaction SYS 0200000001ce2faed018f4776b41245f78695fdabcc68567b64d13851a7f8277693a23f3e0000000006b483045022100d6e0f7c193e0ae5168e0e8c87a29837f4b8be5c5cdcfa2826a8ddc7cf6cbf43802207ddaa377bc042f9df63eb6f755d23170b9109cb05c18c7ce2fe9993e65434c8b01210323f7e071df863cf20ce13613c68579cdedb6d7c6cf3912f26dac53ec4309c777ffffffff0120a10700000000001976a914eff8cb97723237fe3059774d2a66d02f936e1f1188ac00000000"
+        endpoint = type("obj", (object,), {"sample_request": sample})()
+        result = gen._parse_sample_params(endpoint)
+        assert result == ["SYS", "0200000001ce2faed018f4776b41245f78695fdabcc68567b64d13851a7f8277693a23f3e0000000006b483045022100d6e0f7c193e0ae5168e0e8c87a29837f4b8be5c5cdcfa2826a8ddc7cf6cbf43802207ddaa377bc042f9df63eb6f755d23170b9109cb05c18c7ce2fe9993e65434c8b01210323f7e071df863cf20ce13613c68579cdedb6d7c6cf3912f26dac53ec4309c777ffffffff0120a10700000000001976a914eff8cb97723237fe3059774d2a66d02f936e1f1188ac00000000"]
+
+    def test_parse_with_quoted_string(self):
+        """Test shlex.split handles quoted strings correctly (future-proof)"""
+        gen = Generator("path/to/docs.md", "dx", "/tmp/output")
+        # Suppose a future doc has quoted argument with spaces
+        sample = 'blocknet-cli dxCustom "some value with spaces" 123'
+        endpoint = type("obj", (object,), {"sample_request": sample})()
+        result = gen._parse_sample_params(endpoint)
+        assert result == ["some value with spaces", 123]
+
 
 class TestPrefixConfig:
     """Tests for PREFIX_CONFIG constant"""
@@ -150,19 +185,43 @@ class TestWriteProtected:
     """Tests for write-protected endpoint filtering"""
 
     def test_dx_has_write_protected_endpoints(self):
-        assert "dxMakeOrder" in DEFAULT_WRITE_PROTECTED["dx"]
-        assert "dxTakeOrder" in DEFAULT_WRITE_PROTECTED["dx"]
-        assert "dxCancelOrder" in DEFAULT_WRITE_PROTECTED["dx"]
+        assert "dxMakeOrder" in WRITE_PROTECTED["dx"]
+        assert "dxTakeOrder" in WRITE_PROTECTED["dx"]
+        assert "dxCancelOrder" in WRITE_PROTECTED["dx"]
 
     def test_xr_has_write_protected_endpoints(self):
-        assert "xrUpdateNetworkServices" in DEFAULT_WRITE_PROTECTED["xr"]
-        assert "xrConnect" in DEFAULT_WRITE_PROTECTED["xr"]
-        assert "xrSendTransaction" in DEFAULT_WRITE_PROTECTED["xr"]
+        assert "xrUpdateNetworkServices" in WRITE_PROTECTED["xr"]
+        assert "xrConnect" in WRITE_PROTECTED["xr"]
+        assert "xrSendTransaction" in WRITE_PROTECTED["xr"]
 
     def test_read_endpoints_not_in_write_protected(self):
-        assert "dx_get_local_tokens" not in DEFAULT_WRITE_PROTECTED["dx"]
-        assert "dx_get_network_tokens" not in DEFAULT_WRITE_PROTECTED["dx"]
-        assert "xr_get_block_count" not in DEFAULT_WRITE_PROTECTED["xr"]
+        assert "dxGetLocalTokens" not in WRITE_PROTECTED["dx"]
+        assert "dxGetNetworkTokens" not in WRITE_PROTECTED["dx"]
+        assert "xrGetBlockCount" not in WRITE_PROTECTED["xr"]
+
+    def test_validation_warns_on_unknown_methods(self, capsys):
+        """Test that unknown RPC methods in YAML trigger a warning during generation."""
+        from scripts.generate import generator
+
+        # Temporarily modify WRITE_PROTECTED to include a fake method
+        original = generator.WRITE_PROTECTED.copy()
+        generator.WRITE_PROTECTED = {
+            "dx": original["dx"] + ["dxFakeMethod123"],
+            "xr": original["xr"],
+        }
+        try:
+            gen = Generator(
+                doc_path="blocknet-api-docs/source/includes/_xbridge.md",
+                prefix="dx",
+                output_dir="/tmp/output"
+            )
+            gen.load_spec()
+            captured = capsys.readouterr()
+            # structlog prints to stdout by default
+            assert "write_protected.yaml contains unknown RPC methods" in captured.out
+            assert "dxFakeMethod123" in captured.out
+        finally:
+            generator.WRITE_PROTECTED = original
 
 
 class TestGeneratorLoadSpec:

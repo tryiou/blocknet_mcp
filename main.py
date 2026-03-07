@@ -19,7 +19,7 @@ from pathlib import Path
 import sys
 import traceback
 
-from scripts.generate.generator import Generator
+from scripts.generate.generator import WRITE_PROTECTED, Generator
 
 PREFIX_MAP = {
     "dx": {
@@ -80,6 +80,22 @@ def generate_all(doc_path: str | None = None) -> None:
     print("Done! Generated dx_mcp and xr_mcp in ./generated/")
 
 
+def list_all_protected():
+    """Print all write-protected RPC methods from YAML config"""
+    print("Write-Protected RPC Methods (from write_protected.yaml)")
+    print("=" * 60)
+    print()
+    print("XBridge:")
+    for method in sorted(WRITE_PROTECTED.get("dx", [])):
+        print(f"  - {method}")
+    print()
+    print("XRouter:")
+    for method in sorted(WRITE_PROTECTED.get("xr", [])):
+        print(f"  - {method}")
+    print()
+    print("=" * 60)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Generate MCP servers from Blocknet API documentation",
@@ -115,7 +131,18 @@ Examples:
         help="Prefix (alternative to positional arg)",
     )
 
+    parser.add_argument(
+        "--list-protected",
+        action="store_true",
+        help="List all write-protected RPC methods and exit",
+    )
+
     args = parser.parse_args()
+
+    # Handle --list-protected flag first (doesn't require prefix)
+    if args.list_protected:
+        list_all_protected()
+        sys.exit(0)
 
     prefix = args.prefix or args.prefix_opt
     doc_path = args.doc

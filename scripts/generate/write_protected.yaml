@@ -1,0 +1,24 @@
+# Write-Protected RPC Methods
+# These methods modify state on the blockchain/network and should be protected.
+# During MCP server generation, tools corresponding to these RPC methods will
+# be decorated with @write_protected and require MCP_ALLOW_WRITE=true to execute.
+#
+# Structure: prefix (dx|xr) -> list of RPC method names
+
+dx:
+  - dxMakeOrder
+  - dxMakePartialOrder
+  - dxTakeOrder
+  - dxCancelOrder
+  - dxFlushCancelledOrders
+  - dxSplitAddress
+  - dxSplitInputs
+  - dxLoadXBridgeConf
+
+xr:
+  - xrUpdateNetworkServices
+  - xrConnect
+  - xrSendTransaction
+  - xrService
+  - xrServiceConsensus
+  - xrReloadConfigs

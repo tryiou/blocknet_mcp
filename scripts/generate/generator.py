@@ -6,10 +6,12 @@ Generates complete MCP server code from API documentation using Jinja2 templates
 
 from datetime import datetime
 from pathlib import Path
+import shlex
 from typing import Any
 
 import jinja2
 import structlog
+import yaml
 
 from scripts.generate.parser import ApiSpec, parse_api_docs
 
@@ -28,7 +30,8 @@ PREFIX_CONFIG = {
     },
 }
 
-DEFAULT_WRITE_PROTECTED = {
+# Fallback hardcoded list (used if YAML config is missing)
+_DEFAULT_WRITE_PROTECTED = {
     "dx": [
         "dxMakeOrder",
         "dxMakePartialOrder",
@@ -48,6 +51,34 @@ DEFAULT_WRITE_PROTECTED = {
         "xrReloadConfigs",
     ],
 }
+
+def _load_write_protected_config() -> dict[str, list[str]]:
+    """Load write-protected RPC methods from YAML config.
+    Falls back to hardcoded defaults if YAML not found or invalid.
+    """
+    config_path = Path(__file__).parent / "write_protected.yaml"
+    if config_path.exists():
+        try:
+            with open(config_path) as f:
+                data = yaml.safe_load(f)
+                if isinstance(data, dict):
+                    dx_val = data.get("dx")
+                    xr_val = data.get("xr")
+                    # Validate that both values are lists
+                    if isinstance(dx_val, list) and isinstance(xr_val, list):
+                        return {"dx": dx_val, "xr": xr_val}
+                    else:
+                        structlog.get_logger().warning(
+                            "write_protected.yaml values for 'dx' and 'xr' must be lists, using defaults"
+                        )
+                else:
+                    structlog.get_logger().warning("Invalid write_protected.yaml format, using defaults")
+        except Exception as e:
+            structlog.get_logger().warning("Failed to load write_protected.yaml", error=str(e))
+    # Fallback
+    return _DEFAULT_WRITE_PROTECTED
+
+WRITE_PROTECTED = _load_write_protected_config()
 
 
 class Generator:
@@ -70,7 +101,26 @@ class Generator:
         """Load and parse API documentation"""
         self.spec = parse_api_docs(str(self.doc_path), self.prefix)
         self.spec.name = self._config.get("name", self.prefix)
+        self._validate_write_protected_config()
         return self.spec
+
+    def _validate_write_protected_config(self) -> None:
+        """Warn about write-protected RPC methods that don't exist in the API spec."""
+        if not self.spec:
+            return
+        
+        protected_methods = WRITE_PROTECTED.get(self.prefix, [])
+        known_methods = set(self.spec.endpoints.keys())
+        unknown = [m for m in protected_methods if m not in known_methods]
+        
+        if unknown:
+            logger = structlog.get_logger()
+            logger.warning(
+                "write_protected.yaml contains unknown RPC methods",
+                prefix=self.prefix,
+                unknown_methods=unknown,
+                known_methods_count=len(known_methods)
+            )
 
     def generate(self) -> None:
         """Generate MCP server code"""
@@ -162,7 +212,7 @@ class Generator:
 
     def _generate_tools(self, env: jinja2.Environment, output_dir: Path) -> None:
         template = env.get_template("tools/tools.py.jinja")
-        write_protected = set(DEFAULT_WRITE_PROTECTED.get(self.prefix, []))
+        write_protected = set(WRITE_PROTECTED.get(self.prefix, []))
         config = self._build_server_config()
         content = template.render(
             server=config,
@@ -224,7 +274,7 @@ class Generator:
         if not sample:
             return []
 
-        parts = sample.split()
+        parts = shlex.split(sample)
         if len(parts) <= 2:
             return []
 
@@ -252,7 +302,7 @@ class Generator:
         tests_dir.mkdir(parents=True, exist_ok=True)
 
         prefix_name = self._config.get("name", self.prefix)
-        write_protected = set(DEFAULT_WRITE_PROTECTED.get(self.prefix, []))
+        write_protected = set(WRITE_PROTECTED.get(self.prefix, []))
 
         # Ensure spec is loaded
         if not self.spec:

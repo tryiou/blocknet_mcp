@@ -20,7 +20,7 @@ This tool generates fully-functional MCP servers that expose Blocknet's decentra
 - **Automatic Code Generation**: Parse markdown API docs and generate complete MCP servers
 - **Type Safety**: Full Pydantic v2 validation and type hints
 - **Async/Await**: Built on asyncio for high-performance I/O
-- **Write Protection**: Sensitive operations are flagged and can be disabled via `MCP_ALLOW_WRITE`
+- **Write Protection**: Sensitive operations are flagged and can be disabled via `MCP_ALLOW_WRITE`. The list of protected RPC methods is defined in `scripts/generate/write_protected.yaml` and can be customized.
 - **Structured Logging**: Uses structlog for observability
 - **Test Generation**: Auto-generates integration tests from sample requests
 - **Security First**: No hardcoded credentials, environment-based config
@@ -121,7 +121,7 @@ python -m generated.xrouter_mcp.main
 ### Command-Line Options
 
 ```
-python main.py [dx|xr|ALL] [--doc PATH] [--prefix dx|xr|ALL]
+python main.py [dx|xr|ALL] [--doc PATH] [--prefix dx|xr|ALL] [--list-protected]
 
 Positional:
   prefix                Server to generate: dx (XBridge), xr (XRouter), or ALL (both, separately)
@@ -129,6 +129,7 @@ Positional:
 Options:
   --doc PATH, -d PATH   Path to API documentation markdown file. For dx/xr: specific file. For ALL: same file used for both (default: each API's default doc)
   --prefix PREFIX, -p PREFIX  Alternative to positional arg
+  --list-protected      List all write-protected RPC methods and exit
   --help                Show help message
 ```
 
@@ -156,6 +157,18 @@ MCP_ALLOW_WRITE=false  # Set to true only for trusted environments
 Each generated server includes its own `config.py` that loads settings from environment variables. The server name, port, and other parameters can be customized by editing the generated config or setting the appropriate environment variables.
 
 **Important Security Note**: `MCP_ALLOW_WRITE=false` prevents write operations (orders, transactions, config changes). Enable only when you understand the risks.
+
+### Write-Protected Methods
+
+The generator uses `scripts/generate/write_protected.yaml` to define which RPC methods are considered write-protected. These methods will be decorated with `@write_protected` in the generated server and require `MCP_ALLOW_WRITE=true` to execute.
+
+To list the current protected methods:
+
+```bash
+python main.py --list-protected
+```
+
+To customize, edit `scripts/generate/write_protected.yaml`. The YAML file should contain a mapping of prefixes (`dx`, `xr`) to lists of RPC method names. If the file is missing or invalid, the generator falls back to built-in defaults. Unknown method names (typos, outdated docs) will trigger a warning during generation.
 
 ## Architecture
 
