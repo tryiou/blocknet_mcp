@@ -15,16 +15,16 @@ def test_generator_xbridge(tmp_path):
     assert gen.spec is not None
     assert gen.spec.name == "xbridge_mcp"
     assert len(gen.spec.endpoints) > 0
-    
+
     # Verify parser fixes: error codes should be populated
     assert len(gen.spec.error_codes) > 0, "Error codes should be parsed"
-    
+
     # Check specific endpoints that had issues
     # dxGetOrderBook should have 4 params
     orderbook = gen.spec.endpoints.get("dxGetOrderBook")
     assert orderbook is not None
     assert len(orderbook.params) == 4, f"dxGetOrderBook should have 4 params, got {len(orderbook.params)}"
-    
+
     # dxGetOrders should have 0 params and clean description
     orders = gen.spec.endpoints.get("dxGetOrders")
     assert orders is not None
@@ -32,12 +32,12 @@ def test_generator_xbridge(tmp_path):
     assert "This call is used to retrieve all orders" in orders.description
     assert "<aside" not in orders.description
     assert "Key | Type" not in orders.description
-    
+
     # dxSplitInputs should have several params (duplicate heading fix)
     split_inputs = gen.spec.endpoints.get("dxSplitInputs")
     assert split_inputs is not None
     assert len(split_inputs.params) == 7, f"dxSplitInputs should have 7 params, got {len(split_inputs.params)}"
-    
+
     # dxGetLocalTokens (duplicate heading) should have 0 params (correct section)
     local_tokens = gen.spec.endpoints.get("dxGetLocalTokens")
     assert local_tokens is not None

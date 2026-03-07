@@ -1,0 +1,21 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "xbridge_mcp": {
+      "type": "local",
+      "command": [
+        "/pathto/blocknet_mcp/.venv/bin/python",
+        "/pathto/blocknet_mcp/generated/xbridge_mcp/main.py"
+      ],
+      "enabled": true
+    },
+    "xrouter_mcp": {
+      "type": "local",
+      "command": [
+        "/pathto/blocknet_mcp/.venv/bin/python",
+        "/pathto/blocknet_mcp/generated/xrouter_mcp/main.py"
+      ],
+      "enabled": true
+    }   
+  }
+}

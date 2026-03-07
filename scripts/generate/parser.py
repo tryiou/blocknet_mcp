@@ -44,7 +44,7 @@ class ParamSpec:
 
     @property
     def python_default(self) -> str | None:
-        """Get Python default value"""
+        """Get Python default value as a literal string"""
         if self.default_value:
             return self.default_value
         if not self.required:
@@ -170,11 +170,24 @@ class MarkdownParser:
         # Infer response type from sample response format
         if endpoint.sample_response:
             sample = endpoint.sample_response.strip()
-            if sample.startswith('['):
+            # Extract first token to handle multi-line responses
+            first_token = sample.split()[0] if sample.split() else sample
+
+            if first_token.startswith('['):
                 endpoint.response_type = 'list'
-            elif sample.startswith('{'):
+            elif first_token.startswith('{'):
                 endpoint.response_type = 'dict'
-            # else keep default 'dict'
+            elif first_token.lower() in ('true', 'false'):
+                endpoint.response_type = 'bool'
+            elif first_token.isdigit() or (first_token.startswith('-') and first_token[1:].isdigit()):
+                endpoint.response_type = 'int'
+            elif re.match(r'^-?\d+\.\d+$', first_token):
+                endpoint.response_type = 'float'
+            elif (first_token.startswith('"') and first_token.endswith('"')) or (first_token.startswith("'") and first_token.endswith("'")):
+                endpoint.response_type = 'str'
+            else:
+                # Unknown format - keep safe default
+                endpoint.response_type = 'dict'
 
         # Parse error codes
         endpoint.error_codes = self._parse_endpoint_error_codes(section)
@@ -293,17 +306,26 @@ class MarkdownParser:
                 # Determine if required or optional
                 is_required = "(Optional Parameter)" not in description and "(optional)" not in description.lower()
 
-                # Extract default value description
-                default_desc = None
-                default_match = re.search(r'Default[s]?[:\s]+[`"]?(\w+)[`"]?', description, re.IGNORECASE)
+                # Extract default value (look for "Defaults to `value`" pattern)
+                default_value = None
+                # Primary pattern: "Defaults to `value`" (with optional text after)
+                default_match = re.search(r'Defaults? to\s*`([^`]+)`', description, re.IGNORECASE)
                 if default_match:
-                    default_desc = default_match.group(1)
+                    default_value = default_match.group(1).strip()
+                else:
+                    # Fallback: "Default: value" (less common)
+                    default_match = re.search(r'Default:\s*`?([^\s.,;]+)`?', description, re.IGNORECASE)
+                    if default_match:
+                        default_value = default_match.group(1).strip()
 
-                # Clean description - remove HTML tags
+                # Clean description - remove HTML tags and default/optional markers
                 description = re.sub(r"<[^>]+>", "", description)
                 description = re.sub(r"\(Optional Parameter\)", "", description)
                 description = re.sub(r"\(optional\)", "", description, flags=re.IGNORECASE)
-                description = re.sub(r"Default.*?(?=\.|,)", "", description)
+                # Remove the "Defaults to ..." part from description (including any following comma/period)
+                description = re.sub(r'Defaults? to\s*`[^`]+`', '', description, flags=re.IGNORECASE)
+                description = re.sub(r'Default:\s*`?[^`\n.,;]+`?', '', description, flags=re.IGNORECASE)
+                description = description.strip(' :.,;')
                 description = description.strip()[:200]
 
                 if param_name and param_name != "Parameter":
@@ -313,7 +335,7 @@ class MarkdownParser:
                             param_type=param_type,
                             required=is_required,
                             description=description,
-                            default_description=default_desc,
+                            default_value=default_value,
                         )
                     )
 
@@ -406,12 +428,11 @@ class MarkdownParser:
 
 def parse_api_docs(doc_path: str, rpc_prefix: str) -> ApiSpec:
     """Convenience function to parse API documentation"""
-    from pathlib import Path
-    
+
     parser = MarkdownParser(doc_path, rpc_prefix)
     parser.load()
     spec = parser.parse()
-    
+
     # If no error codes found, try to load from global _errors.md in same directory
     if not spec.error_codes:
         doc_dir = Path(doc_path).parent
@@ -421,7 +442,7 @@ def parse_api_docs(doc_path: str, rpc_prefix: str) -> ApiSpec:
             error_parser.load()
             global_errors = error_parser._parse_error_codes()
             spec.error_codes.update(global_errors)
-    
+
     return spec
 
 

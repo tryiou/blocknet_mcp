@@ -33,7 +33,13 @@ async def {{ endpoint.tool_name }}({% if endpoint.params %}
     """
     logger.info("{{ endpoint.tool_name }}_called")
     
-    params = [{% if endpoint.params %}{% for param in endpoint.params %}{{ param.name }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}]
+    params = [
+{% for param in endpoint.params %}
+        {{ param.name }}{% if not loop.last %},{% endif %}
+{% endfor %}
+    ]
+    # Filter out None values (for optional parameters without explicit value)
+    params = [p for p in params if p is not None]
     client = get_client()
     result = await client.call("{{ rpc_method }}", params)
     

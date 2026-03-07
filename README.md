@@ -4,11 +4,14 @@
 [![MCP Protocol](https://img.shields.io/badge/MCP-Model_Context_Protocol-green.svg)](https://modelcontextprotocol.io)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
 
-A code generator that creates Model Context Protocol (MCP) servers for Blocknet's XBridge and XRouter APIs from markdown documentation.
+A code generator that creates Model Context Protocol (MCP) servers for Blocknet's XBridge and XRouter APIs from markdown
+documentation.
 
 ## Overview
 
-This tool generates fully-functional MCP servers that expose Blocknet's decentralized exchange (XBridge) and routing (XRouter) functionality to AI assistants and other MCP clients. It parses Blocknet's API documentation and automatically generates:
+This tool generates fully-functional MCP servers that expose Blocknet's decentralized exchange (XBridge) and routing (
+XRouter) functionality to AI assistants and other MCP clients. It parses Blocknet's API documentation and automatically
+generates:
 
 - Type-safe Python MCP servers using FastMCP
 - Async RPC clients with proper error handling
@@ -20,12 +23,33 @@ This tool generates fully-functional MCP servers that expose Blocknet's decentra
 - **Automatic Code Generation**: Parse markdown API docs and generate complete MCP servers
 - **Type Safety**: Full Pydantic v2 validation and type hints
 - **Async/Await**: Built on asyncio for high-performance I/O
-- **Write Protection**: Sensitive operations are flagged and can be disabled via `MCP_ALLOW_WRITE`. The list of protected RPC methods is defined in `scripts/generate/write_protected.yaml` and can be customized.
+- **Write Protection**: Sensitive operations are flagged and can be disabled via `MCP_ALLOW_WRITE`. The list of
+  protected RPC methods is defined in `scripts/generate/write_protected.yaml` and can be customized.
 - **Structured Logging**: Uses structlog for observability
 - **Test Generation**: Auto-generates integration tests from sample requests
 - **Security First**: No hardcoded credentials, environment-based config
 
 ## Quick Start
+
+### One-Command Build
+
+The `build.sh` script automates everything:
+
+```bash
+# Prerequisite: configure .env first (see below)
+./build.sh
+```
+
+The script will:
+- Verify Python 3.10+
+- Create and set up a virtual environment
+- Install dependencies
+- Clone or update the Blocknet API docs
+- Generate both XBridge and XRouter MCP servers
+
+**Important**: You must have a `.env` file with valid RPC credentials before running `build.sh`.
+
+### Manual Setup
 
 ```bash
 # 1. Create virtual environment
@@ -43,10 +67,6 @@ python main.py ALL   # Generate both XBridge and XRouter (separate servers)
 # 4. Configure credentials
 cp .env.example .env
 # Edit .env with your RPC credentials
-
-# 5. Run tests
-pytest                    # Unit tests
-python test_mcp_servers.py  # Live integration tests (requires node)
 ```
 
 ## Prerequisites
@@ -89,21 +109,24 @@ python main.py dx --doc path/to/custom_xbridge.md
 Generated code is placed in the `generated/` directory:
 
 ```
+
 generated/
-├── xbridge_mcp/     # XBridge MCP server
-│   ├── main.py
-│   ├── config.py
-│   ├── security.py
-│   ├── logging_config.py
-│   ├── rpc/
-│   │   ├── client.py
-│   │   └── exceptions.py
-│   └── generated/
-│       ├── tools.py
-│       ├── specs.py
-│       └── __init__.py
-└── xrouter_mcp/     # XRouter MCP server (same structure)
+├── xbridge_mcp/ # XBridge MCP server
+│ ├── main.py
+│ ├── config.py
+│ ├── security.py
+│ ├── logging_config.py
+│ ├── rpc/
+│ │ ├── client.py
+│ │ └── exceptions.py
+│ └── generated/
+│ ├── tools.py
+│ ├── specs.py
+│ └── __init__.py
+└── xrouter_mcp/ # XRouter MCP server (same structure)
+
 # Note: 'ALL' generates both directories independently, not a combined server
+
 ```
 
 ### Run Generated Servers
@@ -154,13 +177,18 @@ MCP_ALLOW_WRITE=false  # Set to true only for trusted environments
 
 ### Generated Server Configuration
 
-Each generated server includes its own `config.py` that loads settings from environment variables. The server name, port, and other parameters can be customized by editing the generated config or setting the appropriate environment variables.
+Each generated server includes its own `config.py` that loads settings from environment variables. The server name,
+port, and other parameters can be customized by editing the generated config or setting the appropriate environment
+variables.
 
-**Important Security Note**: `MCP_ALLOW_WRITE=false` prevents write operations (orders, transactions, config changes). Enable only when you understand the risks.
+**Important Security Note**: `MCP_ALLOW_WRITE=false` prevents write operations (orders, transactions, config changes).
+Enable only when you understand the risks.
 
 ### Write-Protected Methods
 
-The generator uses `scripts/generate/write_protected.yaml` to define which RPC methods are considered write-protected. These methods will be decorated with `@write_protected` in the generated server and require `MCP_ALLOW_WRITE=true` to execute.
+The generator uses `scripts/generate/write_protected.yaml` to define which RPC methods are considered write-protected.
+These methods will be decorated with `@write_protected` in the generated server and require `MCP_ALLOW_WRITE=true` to
+execute.
 
 To list the current protected methods:
 
@@ -168,7 +196,9 @@ To list the current protected methods:
 python main.py --list-protected
 ```
 
-To customize, edit `scripts/generate/write_protected.yaml`. The YAML file should contain a mapping of prefixes (`dx`, `xr`) to lists of RPC method names. If the file is missing or invalid, the generator falls back to built-in defaults. Unknown method names (typos, outdated docs) will trigger a warning during generation.
+To customize, edit `scripts/generate/write_protected.yaml`. The YAML file should contain a mapping of prefixes (`dx`,
+`xr`) to lists of RPC method names. If the file is missing or invalid, the generator falls back to built-in defaults.
+Unknown method names (typos, outdated docs) will trigger a warning during generation.
 
 ## Architecture
 
@@ -190,16 +220,17 @@ API Documentation (Markdown)
 
 ### Key Components
 
-- **`parser.py`**: Generic markdown parser that extracts endpoints, parameters, and error codes from Blocknet-style documentation
+- **`parser.py`**: Generic markdown parser that extracts endpoints, parameters, and error codes from Blocknet-style
+  documentation
 - **`generator.py`**: Orchestrates code generation, builds configuration, and writes files
 - **`templates/`**: Jinja2 templates for server components:
-  - `server/main.py.jinja` - Entry point with MCP server setup
-  - `server/config.py.jinja` - Configuration management
-  - `server/rpc_client.py.jinja` - Async RPC client
-  - `server/security.py.jinja` - Write protection decorator
-  - `server/logging_config.py.jinja` - Structured logging
-  - `tools/tools.py.jinja` - MCP tool functions
-  - `tests/` - Test templates
+    - `server/main.py.jinja` - Entry point with MCP server setup
+    - `server/config.py.jinja` - Configuration management
+    - `server/rpc_client.py.jinja` - Async RPC client
+    - `server/security.py.jinja` - Write protection decorator
+    - `server/logging_config.py.jinja` - Structured logging
+    - `tools/tools.py.jinja` - MCP tool functions
+    - `tests/` - Test templates
 
 ### Data Models
 
@@ -213,6 +244,7 @@ class ParamSpec:
     description: str
     default_value: str | None
 
+
 @dataclass
 class EndpointSpec:
     rpc_method: str
@@ -221,6 +253,7 @@ class EndpointSpec:
     params: list[ParamSpec]
     response_type: str
     error_codes: list[int]
+
 
 @dataclass
 class ApiSpec:
@@ -275,6 +308,7 @@ pytest tests/unit/test_parser.py::TestParamSpec::test_python_type_string  # Spec
 ```
 
 Unit tests cover:
+
 - Parser logic (type conversion, table parsing, error extraction)
 - Generator initialization and configuration
 - Template rendering
@@ -296,11 +330,13 @@ python test_mcp_servers.py
 ```
 
 **Requirements**:
+
 - Running Blocknet node with RPC access
 - `.env` file with valid credentials
 - `MCP_ALLOW_WRITE=false` (default) for read-only tests
 
 The script:
+
 1. Starts the generated MCP server as a subprocess
 2. Connects via MCP client protocol
 3. Discovers available tokens, orders, block data
@@ -326,6 +362,7 @@ ruff format .             # Format code
 ```
 
 Configuration is in `.ruff.toml`. Key rules:
+
 - Line length: 150 characters
 - Python 3.10+ syntax
 - Import sorting with isort
@@ -367,8 +404,8 @@ def generate_server(prefix: str, doc_path: str | None = None) -> None:
 ### Adding New API Endpoints
 
 1. Update the appropriate markdown file in `blocknet-api-docs/source/includes/`:
-   - `_xbridge.md` for XBridge endpoints
-   - `_xrouter.md` for XRouter endpoints
+    - `_xbridge.md` for XBridge endpoints
+    - `_xrouter.md` for XRouter endpoints
 2. Follow the existing format: `## MethodName`, description, `### Request Parameters` table, samples
 3. Regenerate: `python main.py dx` (or `xr`)
 4. Review generated code in `generated/`
@@ -391,7 +428,8 @@ pytest
 
 ### Write Protection
 
-Write operations are guarded by the `@write_protected` decorator. The generated server checks `MCP_ALLOW_WRITE` at runtime:
+Write operations are guarded by the `@write_protected` decorator. The generated server checks `MCP_ALLOW_WRITE` at
+runtime:
 
 ```python
 # In generated/security.py
@@ -401,14 +439,17 @@ def write_protected(func):
         if not settings.allow_write:
             raise PermissionError("Write operations disabled (MCP_ALLOW_WRITE=false)")
         return await func(*args, **kwargs)
+
     return wrapper
 ```
 
 Protected tools include:
 
-**XBridge**: `dxMakeOrder`, `dxMakePartialOrder`, `dxTakeOrder`, `dxCancelOrder`, `dxFlushCancelledOrders`, `dxSplitAddress`, `dxSplitInputs`, `dxLoadXBridgeConf`
+**XBridge**: `dxMakeOrder`, `dxMakePartialOrder`, `dxTakeOrder`, `dxCancelOrder`, `dxFlushCancelledOrders`,
+`dxSplitAddress`, `dxSplitInputs`, `dxLoadXBridgeConf`
 
-**XRouter**: `xrUpdateNetworkServices`, `xrConnect`, `xrSendTransaction`, `xrService`, `xrServiceConsensus`, `xrReloadConfigs`
+**XRouter**: `xrUpdateNetworkServices`, `xrConnect`, `xrSendTransaction`, `xrService`, `xrServiceConsensus`,
+`xrReloadConfigs`
 
 ### Credential Management
 
@@ -427,13 +468,15 @@ Always test with `MCP_ALLOW_WRITE=false` unless explicitly testing write operati
 
 **Cause**: Server started without proper RPC configuration.
 
-**Solution**: Check `.env` file exists and contains `RPC_USER` and `RPC_PASSWORD`. The server validates these on startup.
+**Solution**: Check `.env` file exists and contains `RPC_USER` and `RPC_PASSWORD`. The server validates these on
+startup.
 
 ### "Connection error" or timeout
 
 **Cause**: Node not running, wrong host/port, or firewall blocking.
 
 **Solution**:
+
 - Verify node is running: `curl http://RPC_USER:RPC_PASSWORD@RPC_HOST:RPC_PORT/`
 - Check `RPC_HOST` and `RPC_PORT` in `.env`
 - Ensure RPC server is enabled in node config (`server=1`)
@@ -443,6 +486,7 @@ Always test with `MCP_ALLOW_WRITE=false` unless explicitly testing write operati
 **Cause**: Documentation format doesn't match expected pattern.
 
 **Solution**: Ensure the markdown table follows the format:
+
 ```
 Parameter | Type | Description
 --- | --- | ---
@@ -455,19 +499,22 @@ The parser expects `### Request Parameters` section with a table.
 
 **Cause**: Tool function names must start with the prefix (`dx` or `xr`).
 
-**Solution**: Check that the markdown method names start with the correct prefix (e.g., `dxGetOrders`). The parser filters endpoints by prefix.
+**Solution**: Check that the markdown method names start with the correct prefix (e.g., `dxGetOrders`). The parser
+filters endpoints by prefix.
 
 ### Tests fail with "Expected dict, got str"
 
 **Cause**: The RPC returned an error message instead of expected data.
 
-**Solution**: Check RPC credentials have permission for that endpoint. Some RPC methods require specific account balances or node configuration.
+**Solution**: Check RPC credentials have permission for that endpoint. Some RPC methods require specific account
+balances or node configuration.
 
 ### Import errors when running generated server
 
 **Cause**: Python path issues.
 
-**Solution**: The generated server includes `sys.path.insert(0, str(Path(__file__).parent.parent))` to handle package imports. Run from the project root or ensure the package structure is intact.
+**Solution**: The generated server includes `sys.path.insert(0, str(Path(__file__).parent.parent))` to handle package
+imports. Run from the project root or ensure the package structure is intact.
 
 ## Contributing
 
@@ -520,4 +567,5 @@ MIT License - see LICENSE file for details.
 
 ---
 
-**Note**: This is an unofficial MCP integration for Blocknet. It is not affiliated with or endorsed by the Blocknet team. Use at your own risk. Always test in a safe environment before using with mainnet funds.
+**Note**: This is an unofficial MCP integration for Blocknet. It is not affiliated with or endorsed by the Blocknet
+team. Use at your own risk. Always test in a safe environment before using with mainnet funds.

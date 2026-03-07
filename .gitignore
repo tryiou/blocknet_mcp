@@ -1,5 +1,7 @@
 .aider*
+.idea*
 .venv/
 *.pyc
 .env
 generated/
+opencode.json

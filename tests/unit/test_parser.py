@@ -256,3 +256,75 @@ class TestParseApiDocs:
         # The first occurrence is mislabeled content (actually dxGetTradingData).
         # Our fix should keep the last occurrence which correctly has 0 params.
         assert len(ep.params) == 0, f"Expected 0 params, got {len(ep.params)}"
+
+
+class TestDefaultValueParsing:
+    """Tests for default value extraction from parameter descriptions"""
+
+    def test_dxmakepartialorder_repost_default(self):
+        """dxMakePartialOrder: repost parameter has default 'true'"""
+        spec = parse_api_docs(str(TEST_XBRIDGE_DOC), "dx")
+        ep = spec.endpoints.get("dxMakePartialOrder")
+        assert ep is not None
+        # Find the repost parameter
+        repost = next((p for p in ep.params if p.name == "repost"), None)
+        assert repost is not None, "repost parameter should exist"
+        assert not repost.required, "repost should be optional"
+        assert repost.default_value == "true", f"Expected default 'true', got {repost.default_value}"
+
+    def test_dxmakepartialorder_dryrun_optional_no_default(self):
+        """dxMakePartialOrder: dryrun is optional but no explicit default"""
+        spec = parse_api_docs(str(TEST_XBRIDGE_DOC), "dx")
+        ep = spec.endpoints.get("dxMakePartialOrder")
+        dryrun = next((p for p in ep.params if p.name == "dryrun"), None)
+        assert dryrun is not None, "dryrun parameter should exist"
+        assert not dryrun.required, "dryrun should be optional"
+        assert dryrun.default_value is None, f"dryrun should have no default, got {dryrun.default_value}"
+
+    def test_xrupdatenetworkservices_node_count_default(self):
+        """xrUpdateNetworkServices: node_count has default '1'"""
+        spec = parse_api_docs(str(TEST_XROUTER_DOC), "xr")
+        ep = spec.endpoints.get("xrUpdateNetworkServices")
+        assert ep is not None
+        # xrUpdateNetworkServices has optional node_count default 1
+        node_count = next((p for p in ep.params if p.name == "node_count"), None)
+        assert node_count is not None, "node_count parameter should exist"
+        assert not node_count.required, "node_count should be optional"
+        assert node_count.default_value == "1", f"Expected default '1', got {node_count.default_value}"
+
+    def test_default_true_false_booleans(self):
+        """Verify boolean defaults are captured correctly"""
+        spec = parse_api_docs(str(TEST_XBRIDGE_DOC), "dx")
+        # dxGetOrderFills has combines optional default true
+        ep = spec.endpoints.get("dxGetOrderFills")
+        assert ep is not None
+        combines = next((p for p in ep.params if p.name == "combines"), None)
+        assert combines is not None
+        assert not combines.required
+        assert combines.default_value == "true"
+
+    def test_optional_without_default_dxmakeorder_dryrun(self):
+        """dxMakeOrder: dryrun is optional but has no documented default"""
+        spec = parse_api_docs(str(TEST_XBRIDGE_DOC), "dx")
+        ep = spec.endpoints.get("dxMakeOrder")
+        assert ep is not None
+        dryrun = next((p for p in ep.params if p.name == "dryrun"), None)
+        assert dryrun is not None, "dryrun parameter should exist"
+        assert not dryrun.required
+        assert dryrun.default_value is None, "dryrun should have no default value"
+
+
+class TestResponseTypeInference:
+    """Tests for scalar response type inference from sample responses"""
+
+    def test_xrupdatenetworkservices_response_type_is_bool(self):
+        xrouter = parse_api_docs('blocknet-api-docs/source/includes/_xrouter.md', 'xr')
+        ep = xrouter.endpoints.get('xrUpdateNetworkServices')
+        assert ep is not None
+        assert ep.response_type == 'bool', f"Expected 'bool', got '{ep.response_type}'"
+
+    def test_xrreloadconfigs_response_type_is_bool(self):
+        xrouter = parse_api_docs('blocknet-api-docs/source/includes/_xrouter.md', 'xr')
+        ep = xrouter.endpoints.get('xrReloadConfigs')
+        assert ep is not None
+        assert ep.response_type == 'bool', f"Expected 'bool', got '{ep.response_type}'"

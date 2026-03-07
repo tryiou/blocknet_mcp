@@ -52,6 +52,7 @@ _DEFAULT_WRITE_PROTECTED = {
     ],
 }
 
+
 def _load_write_protected_config() -> dict[str, list[str]]:
     """Load write-protected RPC methods from YAML config.
     Falls back to hardcoded defaults if YAML not found or invalid.
@@ -78,6 +79,7 @@ def _load_write_protected_config() -> dict[str, list[str]]:
     # Fallback
     return _DEFAULT_WRITE_PROTECTED
 
+
 WRITE_PROTECTED = _load_write_protected_config()
 
 
@@ -85,10 +87,10 @@ class Generator:
     """Generates MCP server code from API specifications"""
 
     def __init__(
-        self,
-        doc_path: str,
-        prefix: str,
-        output_dir: str,
+            self,
+            doc_path: str,
+            prefix: str,
+            output_dir: str,
     ):
         self.doc_path = Path(doc_path)
         self.prefix = prefix.lower()
@@ -108,11 +110,11 @@ class Generator:
         """Warn about write-protected RPC methods that don't exist in the API spec."""
         if not self.spec:
             return
-        
+
         protected_methods = WRITE_PROTECTED.get(self.prefix, [])
         known_methods = set(self.spec.endpoints.keys())
         unknown = [m for m in protected_methods if m not in known_methods]
-        
+
         if unknown:
             logger = structlog.get_logger()
             logger.warning(
@@ -476,7 +478,7 @@ class Generator:
         documented_codes = set(self.spec.error_codes.keys()) if self.spec else set()
         supplemental_codes = {-1, -3, 1035}  # -1/-3 for type errors, 1035 for xrGetReply no replies
         all_error_codes = documented_codes | supplemental_codes
-        
+
         integration_content = integration_template.render(
             server=server_config,
             prefix=self.prefix,
@@ -509,6 +511,36 @@ class Generator:
 
         return decorator_for
 
+    def _format_default_literal(self, param) -> str:
+        """Convert a default value string to a Python literal for code generation."""
+        if not param.default_value:
+            return "None"
+
+        value = param.default_value
+        py_type = param.python_type
+
+        # Boolean: convert to True/False
+        if py_type == "bool":
+            lower = value.lower()
+            if lower in ("true", "1"):
+                return "True"
+            elif lower in ("false", "0"):
+                return "False"
+            # Fallback: keep original (shouldn't happen)
+            return value
+
+        # Numeric types: keep as string representation (int, float)
+        if py_type in ("int", "int64", "float", "float64"):
+            return value
+
+        # String types: quote as string literal
+        if py_type.startswith("str"):
+            # Use repr for proper escaping and quotes
+            return repr(value)
+
+        # Fallback: treat as string literal
+        return repr(value)
+
     def _make_format_params(self):
         def format_params(params):
             if not params:
@@ -517,9 +549,19 @@ class Generator:
             lines = []
             for i, param in enumerate(params):
                 py_type = param.python_type
-                default = "" if param.required else " = None"
+                if param.required:
+                    type_str = py_type
+                    default = ""
+                else:
+                    if param.default_value:
+                        type_str = py_type
+                        default = f" = {self._format_default_literal(param)}"
+                    else:
+                        # Optional without documented default -> can be None
+                        type_str = f"{py_type} | None"
+                        default = " = None"
                 comma = "," if i < len(params) - 1 else ""
-                lines.append(f"    {param.name}: {py_type}{default}{comma}")
+                lines.append(f"    {param.name}: {type_str}{default}{comma}")
 
             return "\n".join(lines)
 
