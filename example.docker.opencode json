@@ -1,0 +1,15 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+     "xbridge": {
+       "type": "remote",
+       "url": "http://localhost:8081/mcp",
+       "enabled": true
+     },
+     "xrouter": {
+       "type": "remote",
+       "url": "http://localhost:8082/mcp",
+       "enabled": true
+     }
+  }
+}

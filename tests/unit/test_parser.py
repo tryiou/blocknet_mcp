@@ -318,13 +318,13 @@ class TestResponseTypeInference:
     """Tests for scalar response type inference from sample responses"""
 
     def test_xrupdatenetworkservices_response_type_is_bool(self):
-        xrouter = parse_api_docs('blocknet-api-docs/source/includes/_xrouter.md', 'xr')
-        ep = xrouter.endpoints.get('xrUpdateNetworkServices')
+        xrouter = parse_api_docs("blocknet-api-docs/source/includes/_xrouter.md", "xr")
+        ep = xrouter.endpoints.get("xrUpdateNetworkServices")
         assert ep is not None
-        assert ep.response_type == 'bool', f"Expected 'bool', got '{ep.response_type}'"
+        assert ep.response_type == "bool", f"Expected 'bool', got '{ep.response_type}'"
 
     def test_xrreloadconfigs_response_type_is_bool(self):
-        xrouter = parse_api_docs('blocknet-api-docs/source/includes/_xrouter.md', 'xr')
-        ep = xrouter.endpoints.get('xrReloadConfigs')
+        xrouter = parse_api_docs("blocknet-api-docs/source/includes/_xrouter.md", "xr")
+        ep = xrouter.endpoints.get("xrReloadConfigs")
         assert ep is not None
-        assert ep.response_type == 'bool', f"Expected 'bool', got '{ep.response_type}'"
+        assert ep.response_type == "bool", f"Expected 'bool', got '{ep.response_type}'"

@@ -2,12 +2,12 @@
 """Comprehensive test suite for MCP servers against live Blocknet node."""
 
 import asyncio
-from dataclasses import dataclass, field
 import json
 import os
 import sys
 import time
 import traceback
+from dataclasses import dataclass, field
 
 import dotenv
 from mcp import ClientSession, StdioServerParameters
@@ -26,6 +26,7 @@ RPC_PASSWORD = os.getenv("RPC_PASSWORD")
 @dataclass
 class TestContext:
     """Shared context for discovered runtime data."""
+
     tokens: list[str] = field(default_factory=list)
     maker: str = "BLOCK"
     taker: str = "LTC"
@@ -45,7 +46,7 @@ def extract_result_data(result):
 
     texts = []
     for item in result.content:
-        if hasattr(item, 'text'):
+        if hasattr(item, "text"):
             texts.append(item.text)
 
     if not texts:
@@ -128,10 +129,10 @@ async def discover_orders(session, context):
         order_ids = []
         for item in data:
             if isinstance(item, dict):
-                if 'id' in item:
-                    order_ids.append(item['id'])
-                elif 'order_id' in item:
-                    order_ids.append(item['order_id'])
+                if "id" in item:
+                    order_ids.append(item["id"])
+                elif "order_id" in item:
+                    order_ids.append(item["order_id"])
             elif isinstance(item, str):
                 order_ids.append(item)
         context.order_ids = order_ids[:10]  # Keep up to 10 for testing
@@ -146,21 +147,17 @@ async def discover_block_data(session, context):
         return False
 
     # Get block count
-    success, data, _ = await safe_call(session, "xrGetBlockCount",
-                                           {"blockchain": context.block_chain}, "dict")
+    success, data, _ = await safe_call(session, "xrGetBlockCount", {"blockchain": context.block_chain}, "dict")
     if success and isinstance(data, dict):
         # Try common keys for block height
-        height = data.get('height') or data.get('block_count') or data.get('count')
+        height = data.get("height") or data.get("block_count") or data.get("count")
         if height:
             context.block_height = int(height)
 
             # Get block hash for that height
-            success2, data2, _ = await safe_call(session, "xrGetBlockHash",
-                                                      {"blockchain": context.block_chain,
-                                                       "block_number": str(height)},
-                                                      "dict")
+            success2, data2, _ = await safe_call(session, "xrGetBlockHash", {"blockchain": context.block_chain, "block_number": str(height)}, "dict")
             if success2 and isinstance(data2, dict):
-                block_hash = data2.get('hash') or data2.get('block_hash')
+                block_hash = data2.get("hash") or data2.get("block_hash")
                 if block_hash:
                     context.block_hash = block_hash
                     return True
@@ -169,8 +166,7 @@ async def discover_block_data(session, context):
 
 async def discover_utxos(session, context):
     """Discover UTXOs for the maker asset."""
-    success, data, _ = await safe_call(session, "dxGetUtxos",
-                                           {"asset": context.maker}, "list")
+    success, data, _ = await safe_call(session, "dxGetUtxos", {"asset": context.maker}, "list")
     if success and isinstance(data, list):
         context.utxos = data[:5]  # Keep up to 5 UTXOs
         return True
@@ -223,16 +219,15 @@ XBRIDGE_TESTS = [
     {"tool": "dxGetTokenBalances", "params": {}, "type": "dict"},
     {"tool": "dxGetTradingData", "params": {}, "type": "list"},
     {"tool": "dxLoadXBridgeConf", "params": {}, "type": "dict"},
-
     # Tools with required parameters
     {"tool": "dxGetOrder", "params": {"id": "FIRST_ORDER_ID"}, "type": "dict", "requires": "order_ids"},
     {"tool": "dxGetOrderBook", "params": {"detail": 1, "maker": "MAKER", "taker": "TAKER"}, "type": "dict"},
     {"tool": "dxGetOrderFills", "params": {"maker": "MAKER", "taker": "TAKER"}, "type": "list"},
-    {"tool": "dxGetOrderHistory", "params": {
-        "maker": "MAKER", "taker": "TAKER",
-        "start_time": "EPOCH_1D_AGO", "end_time": "EPOCH_NOW",
-        "granularity": 86400
-    }, "type": "list"},
+    {
+        "tool": "dxGetOrderHistory",
+        "params": {"maker": "MAKER", "taker": "TAKER", "start_time": "EPOCH_1D_AGO", "end_time": "EPOCH_NOW", "granularity": 86400},
+        "type": "list",
+    },
     {"tool": "dxGetNewTokenAddress", "params": {"asset": "MAKER"}, "type": "list"},
     {"tool": "dxGetUtxos", "params": {"asset": "MAKER"}, "type": "list"},
 ]
@@ -244,15 +239,11 @@ XROUTER_TESTS = [
     {"tool": "xrConnectedNodes", "params": {}, "type": "dict"},
     {"tool": "xrStatus", "params": {}, "type": "dict"},
     {"tool": "xrShowConfigs", "params": {}, "type": "list"},
-
     # Tools with required parameters
     {"tool": "xrGetBlockCount", "params": {"blockchain": "BLOCKCHAIN"}, "type": "dict"},
-    {"tool": "xrGetBlockHash", "params": {"blockchain": "BLOCKCHAIN", "block_number": "HEIGHT"}, "type": "dict",
-     "requires": "block_height"},
-    {"tool": "xrGetBlock", "params": {"blockchain": "BLOCKCHAIN", "block_hash": "HASH"}, "type": "dict",
-     "requires": "block_hash"},
-    {"tool": "xrGetBlocks", "params": {"blockchain": "BLOCKCHAIN", "block_hashes": "HASH"}, "type": "dict",
-     "requires": "block_hash"},
+    {"tool": "xrGetBlockHash", "params": {"blockchain": "BLOCKCHAIN", "block_number": "HEIGHT"}, "type": "dict", "requires": "block_height"},
+    {"tool": "xrGetBlock", "params": {"blockchain": "BLOCKCHAIN", "block_hash": "HASH"}, "type": "dict", "requires": "block_hash"},
+    {"tool": "xrGetBlocks", "params": {"blockchain": "BLOCKCHAIN", "block_hashes": "HASH"}, "type": "dict", "requires": "block_hash"},
     {"tool": "xrDecodeRawTransaction", "params": {"blockchain": "BLOCKCHAIN", "tx_hex": "DUMMY"}, "type": "dict"},
     {"tool": "xrGetTransaction", "params": {"blockchain": "BLOCKCHAIN", "tx_id": "DUMMY"}, "type": "dict"},
     {"tool": "xrGetTransactions", "params": {"blockchain": "BLOCKCHAIN", "tx_ids": "DUMMY"}, "type": "dict"},
@@ -445,19 +436,19 @@ async def test_xbridge_server():
     """Comprehensive test of XBridge MCP server."""
     print("Testing XBridge MCP Server...")
 
-    env = {k: v for k, v in {
-        "RPC_HOST": RPC_HOST,
-        "RPC_PORT": RPC_PORT,
-        "RPC_USER": RPC_USER,
-        "RPC_PASSWORD": RPC_PASSWORD,
-        "MCP_ALLOW_WRITE": "false"
-    }.items() if v is not None}
+    env = {
+        k: v
+        for k, v in {
+            "RPC_HOST": RPC_HOST,
+            "RPC_PORT": RPC_PORT,
+            "RPC_USER": RPC_USER,
+            "RPC_PASSWORD": RPC_PASSWORD,
+            "MCP_ALLOW_WRITE": "false",
+        }.items()
+        if v is not None
+    }
 
-    server_params = StdioServerParameters(
-        command="python",
-        args=["-m", "generated.xbridge_mcp.main"],
-        env=env
-    )
+    server_params = StdioServerParameters(command="python", args=["-m", "generated.xbridge_mcp.main"], env=env)
 
     async with stdio_client(server_params) as (read, write):
         async with ClientSession(read, write) as session:
@@ -482,19 +473,19 @@ async def test_xrouter_server():
     """Comprehensive test of XRouter MCP server."""
     print("\nTesting XRouter MCP Server...")
 
-    env = {k: v for k, v in {
-        "RPC_HOST": RPC_HOST,
-        "RPC_PORT": RPC_PORT,
-        "RPC_USER": RPC_USER,
-        "RPC_PASSWORD": RPC_PASSWORD,
-        "MCP_ALLOW_WRITE": "false"
-    }.items() if v is not None}
+    env = {
+        k: v
+        for k, v in {
+            "RPC_HOST": RPC_HOST,
+            "RPC_PORT": RPC_PORT,
+            "RPC_USER": RPC_USER,
+            "RPC_PASSWORD": RPC_PASSWORD,
+            "MCP_ALLOW_WRITE": "false",
+        }.items()
+        if v is not None
+    }
 
-    server_params = StdioServerParameters(
-        command="python",
-        args=["-m", "generated.xrouter_mcp.main"],
-        env=env
-    )
+    server_params = StdioServerParameters(command="python", args=["-m", "generated.xrouter_mcp.main"], env=env)
 
     async with stdio_client(server_params) as (read, write):
         async with ClientSession(read, write) as session:

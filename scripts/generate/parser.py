@@ -9,10 +9,10 @@ Parses Blocknet-style markdown API documentation to extract:
 Designed to be generic and work with any Blocknet API doc format.
 """
 
-from dataclasses import dataclass, field
-from pathlib import Path
 import re
 import sys
+from dataclasses import dataclass, field
+from pathlib import Path
 
 
 @dataclass
@@ -173,21 +173,21 @@ class MarkdownParser:
             # Extract first token to handle multi-line responses
             first_token = sample.split()[0] if sample.split() else sample
 
-            if first_token.startswith('['):
-                endpoint.response_type = 'list'
-            elif first_token.startswith('{'):
-                endpoint.response_type = 'dict'
-            elif first_token.lower() in ('true', 'false'):
-                endpoint.response_type = 'bool'
-            elif first_token.isdigit() or (first_token.startswith('-') and first_token[1:].isdigit()):
-                endpoint.response_type = 'int'
-            elif re.match(r'^-?\d+\.\d+$', first_token):
-                endpoint.response_type = 'float'
+            if first_token.startswith("["):
+                endpoint.response_type = "list"
+            elif first_token.startswith("{"):
+                endpoint.response_type = "dict"
+            elif first_token.lower() in ("true", "false"):
+                endpoint.response_type = "bool"
+            elif first_token.isdigit() or (first_token.startswith("-") and first_token[1:].isdigit()):
+                endpoint.response_type = "int"
+            elif re.match(r"^-?\d+\.\d+$", first_token):
+                endpoint.response_type = "float"
             elif (first_token.startswith('"') and first_token.endswith('"')) or (first_token.startswith("'") and first_token.endswith("'")):
-                endpoint.response_type = 'str'
+                endpoint.response_type = "str"
             else:
                 # Unknown format - keep safe default
-                endpoint.response_type = 'dict'
+                endpoint.response_type = "dict"
 
         # Parse error codes
         endpoint.error_codes = self._parse_endpoint_error_codes(section)
@@ -248,98 +248,92 @@ class MarkdownParser:
 
     def _parse_params(self, section: str) -> list[ParamSpec]:
         """Parse parameter table from endpoint section"""
-        params = []
+        request_text = self._extract_request_parameters_section(section)
+        if not request_text:
+            return []
 
-        # Extract only the Request Parameters subsection
-        request_match = re.search(
-            r"### Request Parameters\s*\n(.*?)(?=### |\Z)",
-            section,
-            re.DOTALL | re.IGNORECASE
-        )
-        if not request_match:
-            return params
+        if self._has_no_parameters_statement(request_text):
+            return []
 
-        request_text = request_match.group(1).strip()
+        table_content = self._extract_parameter_table(request_text)
+        if not table_content:
+            return []
 
-        # Check if endpoint explicitly says no parameters
-        if re.search(r"does not take parameters", request_text, re.IGNORECASE):
-            return params
+        return self._parse_parameter_rows(table_content)
 
-        # Try both header patterns: "Parameter" and "Key"
+    def _extract_request_parameters_section(self, section: str) -> str | None:
+        """Extract the 'Request Parameters' subsection content"""
+        match = re.search(r"### Request Parameters\s*\n(.*?)(?=### |\Z)", section, re.DOTALL | re.IGNORECASE)
+        return match.group(1).strip() if match else None
+
+    def _has_no_parameters_statement(self, text: str) -> bool:
+        """Check if endpoint explicitly states it has no parameters"""
+        return bool(re.search(r"does not take parameters", text, re.IGNORECASE))
+
+    def _extract_parameter_table(self, text: str) -> str | None:
+        """Extract markdown table rows from the parameters section"""
         patterns = [
             r"Parameter\s*\|\s*Type\s*\|\s*Description\s*\n[-|]+\|[-|]+\|[-|]+\n(.*?)(?=\n###|\Z)",
             r"Key\s*\|\s*Type\s*\|\s*Description\s*\n[-|]+\|[-|]+\|[-|]+\n(.*?)(?=\n###|\Z)",
         ]
-
-        table_content = None
         for pattern in patterns:
-            table_match = re.search(pattern, request_text, re.DOTALL | re.IGNORECASE)
-            if table_match:
-                table_content = table_match.group(1)
-                break
+            match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
+            if match:
+                return match.group(1)
+        return None
 
-        if not table_content:
-            return params
-
-        # Parse each row
+    def _parse_parameter_rows(self, table_content: str) -> list[ParamSpec]:
+        """Parse each markdown table row into ParamSpec objects"""
+        params = []
         for line in table_content.split("\n"):
             line = line.strip()
-            if not line or line.startswith("<!--"):
+            if not line or line.startswith("<!--") or line.startswith("-") or re.match(r"^[\s|-]+$", line):
                 continue
-
-            # Skip nested parameter rows (starting with dash)
-            if line.startswith("-"):
-                continue
-
-            # Skip separator lines
-            if re.match(r"^[\s|-]+$", line):
-                continue
-
-            # Split by | but filter empty
             parts = [p.strip() for p in line.split("|") if p.strip()]
-
-            if len(parts) >= 2:
-                param_name = parts[0]
-                param_type = parts[1] if len(parts) > 1 else "string"
-                description = parts[2] if len(parts) > 2 else ""
-
-                # Determine if required or optional
-                is_required = "(Optional Parameter)" not in description and "(optional)" not in description.lower()
-
-                # Extract default value (look for "Defaults to `value`" pattern)
-                default_value = None
-                # Primary pattern: "Defaults to `value`" (with optional text after)
-                default_match = re.search(r'Defaults? to\s*`([^`]+)`', description, re.IGNORECASE)
-                if default_match:
-                    default_value = default_match.group(1).strip()
-                else:
-                    # Fallback: "Default: value" (less common)
-                    default_match = re.search(r'Default:\s*`?([^\s.,;]+)`?', description, re.IGNORECASE)
-                    if default_match:
-                        default_value = default_match.group(1).strip()
-
-                # Clean description - remove HTML tags and default/optional markers
-                description = re.sub(r"<[^>]+>", "", description)
-                description = re.sub(r"\(Optional Parameter\)", "", description)
-                description = re.sub(r"\(optional\)", "", description, flags=re.IGNORECASE)
-                # Remove the "Defaults to ..." part from description (including any following comma/period)
-                description = re.sub(r'Defaults? to\s*`[^`]+`', '', description, flags=re.IGNORECASE)
-                description = re.sub(r'Default:\s*`?[^`\n.,;]+`?', '', description, flags=re.IGNORECASE)
-                description = description.strip(' :.,;')
-                description = description.strip()[:200]
-
-                if param_name and param_name != "Parameter":
-                    params.append(
-                        ParamSpec(
-                            name=param_name,
-                            param_type=param_type,
-                            required=is_required,
-                            description=description,
-                            default_value=default_value,
-                        )
-                    )
-
+            if len(parts) < 2:
+                continue
+            param = self._create_param_from_parts(parts)
+            if param:
+                params.append(param)
         return params
+
+    def _create_param_from_parts(self, parts: list[str]) -> ParamSpec | None:
+        """Construct a ParamSpec from split table row parts"""
+        name = parts[0]
+        if name == "Parameter":
+            return None
+        p_type = parts[1] if len(parts) > 1 else "string"
+        description = parts[2] if len(parts) > 2 else ""
+        required = "(Optional Parameter)" not in description and "(optional)" not in description.lower()
+        default = self._extract_default_value(description)
+        clean_desc = self._clean_parameter_description(description)
+        return ParamSpec(
+            name=name,
+            param_type=p_type,
+            required=required,
+            description=clean_desc,
+            default_value=default,
+        )
+
+    def _extract_default_value(self, description: str) -> str | None:
+        """Extract default value from parameter description"""
+        m = re.search(r"Defaults? to\s*`([^`]+)`", description, re.IGNORECASE)
+        if m:
+            return m.group(1).strip()
+        m = re.search(r"Default:\s*`?([^\s.,;]+)`?", description, re.IGNORECASE)
+        if m:
+            return m.group(1).strip()
+        return None
+
+    def _clean_parameter_description(self, description: str) -> str:
+        """Remove metadata and markup from description"""
+        description = re.sub(r"<[^>]+>", "", description)
+        description = re.sub(r"\(Optional Parameter\)", "", description)
+        description = re.sub(r"\(optional\)", "", description, flags=re.IGNORECASE)
+        description = re.sub(r"Defaults? to\s*`[^`]+`", "", description, flags=re.IGNORECASE)
+        description = re.sub(r"Default:\s*`?[^`\n.,;]+`?", "", description, flags=re.IGNORECASE)
+        description = description.strip(" :.,;")
+        return description.strip()[:200]
 
     def _extract_sample(self, section: str, section_type: str) -> str:
         """Extract sample request or response"""

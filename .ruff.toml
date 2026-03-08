@@ -26,12 +26,6 @@ select = [
 [lint.mccabe]
 max-complexity = 10
 
-[format]
-quote-style = "double"
-indent-style = "space"
-
-[lint.isort]
-known-first-party = ["scripts", "tests", "generated"]
-force-sort-within-sections = true
-force-wrap-aliases = true
-lines-between-types = 1
+[lint.per-file-ignores]
+"tests/unit/test_mcp_runner.py" = ["ARG001", "ARG005"]
+"test_mcp_servers.py" = ["C901"]

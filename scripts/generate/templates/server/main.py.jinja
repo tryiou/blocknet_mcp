@@ -77,7 +77,12 @@ def create_mcp_server() -> FastMCP:
     init_security(mcp_settings)
     
     # Create FastMCP server
-    mcp = FastMCP(mcp_settings.server_name)
+    mcp = FastMCP(
+        name=mcp_settings.server_name,
+        host=mcp_settings.host,
+        port=mcp_settings.port,
+        log_level=mcp_settings.log_level,
+    )
     
     # Register all tools
     register_generated_tools(mcp, get_client)
@@ -115,7 +120,12 @@ async def run_server() -> None:
     
     # Run the server (this blocks)
     try:
-        await mcp.run_stdio_async()
+        if mcp_settings.transport == "http":
+            _logger.info("Starting HTTP transport", port=mcp_settings.port, host=mcp_settings.host)
+            await mcp.run_streamable_http_async()
+        else:
+            _logger.info("Starting stdio transport")
+            await mcp.run_stdio_async()
     finally:
         await cleanup_client()
 

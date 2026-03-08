@@ -1,0 +1,72 @@
+services:
+  blocknet-core:
+    image: blocknetdx/blocknet:latest
+    container_name: blocknet-core
+    user: "${UID:-1000}:${GID:-1000}"
+    command: blocknetd -datadir=/opt/blockchain/blocknet
+    restart: on-failure:3
+    environment:
+      - HOME=/opt/blockchain/.home/
+      - RPC_USER=${RPC_USER}
+      - RPC_PASSWORD=${RPC_PASSWORD}
+      - RPC_PORT=${RPC_PORT}
+    stop_signal: SIGINT
+    stop_grace_period: 10m
+    volumes:
+      - /mnt/nvme/chains/blocknet_x3:/opt/blockchain/blocknet
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "2m"
+        max-file: "10"
+    network_mode: "host"
+    healthcheck:
+      test: ["CMD", "blocknet-cli", "--datadir=/opt/blockchain/blocknet/", "getblockcount"]
+      interval: 30s
+      timeout: 30s
+      retries: 3
+      start_period: 180s
+
+  xbridge-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - SERVER_TYPE=xbridge
+    container_name: xbridge-mcp
+    depends_on:
+      blocknet-core:
+        condition: service_healthy
+    environment:
+      - RPC_HOST=localhost
+      - RPC_PORT=${RPC_PORT}
+      - RPC_USER=${RPC_USER}
+      - RPC_PASSWORD=${RPC_PASSWORD}
+      - MCP_ALLOW_WRITE=false
+      - MCP_LOG_LEVEL=INFO
+      - MCP_TRANSPORT=http
+      - MCP_PORT=8081
+    restart: unless-stopped
+    network_mode: "host"
+
+  xrouter-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - SERVER_TYPE=xrouter
+    container_name: xrouter-mcp
+    depends_on:
+      blocknet-core:
+        condition: service_healthy
+    environment:
+      - RPC_HOST=localhost
+      - RPC_PORT=${RPC_PORT}
+      - RPC_USER=${RPC_USER}
+      - RPC_PASSWORD=${RPC_PASSWORD}
+      - MCP_ALLOW_WRITE=false
+      - MCP_LOG_LEVEL=INFO
+      - MCP_TRANSPORT=http
+      - MCP_PORT=8082
+    restart: unless-stopped
+    network_mode: "host"

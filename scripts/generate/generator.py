@@ -4,10 +4,10 @@ MCP Server Code Generator
 Generates complete MCP server code from API documentation using Jinja2 templates.
 """
 
+import shlex
 from datetime import datetime
 from pathlib import Path
-import shlex
-from typing import Any
+from typing import Any, ClassVar
 
 import jinja2
 import structlog
@@ -69,9 +69,7 @@ def _load_write_protected_config() -> dict[str, list[str]]:
                     if isinstance(dx_val, list) and isinstance(xr_val, list):
                         return {"dx": dx_val, "xr": xr_val}
                     else:
-                        structlog.get_logger().warning(
-                            "write_protected.yaml values for 'dx' and 'xr' must be lists, using defaults"
-                        )
+                        structlog.get_logger().warning("write_protected.yaml values for 'dx' and 'xr' must be lists, using defaults")
                 else:
                     structlog.get_logger().warning("Invalid write_protected.yaml format, using defaults")
         except Exception as e:
@@ -86,11 +84,74 @@ WRITE_PROTECTED = _load_write_protected_config()
 class Generator:
     """Generates MCP server code from API specifications"""
 
+    # Test generation constants (extracted from _generate_tests)
+    PLACEHOLDERS: ClassVar[dict[str, str]] = {
+        "maker": "MAKER",
+        "token": "MAKER",
+        "asset": "MAKER",
+        "taker": "TAKER",
+        "token2": "TAKER",
+        "blockchain": "BLOCKCHAIN",
+        "chain": "BLOCKCHAIN",
+        "uuid": "LAST_UUID",
+        "id": "FIRST_ORDER_ID",
+        "order_id": "FIRST_ORDER_ID",
+        "block_number": "HEIGHT",
+        "height": "HEIGHT",
+        "block_hash": "HASH",
+        "hash": "HASH",
+        "start_time": "EPOCH_1D_AGO",
+        "end_time": "EPOCH_NOW",
+        "timestamp": "EPOCH_NOW",
+        "tx_hex": "TX_HEX",
+        "tx_id": "TX_ID",
+        "tx_ids": "TX_IDS",
+    }
+
+    DEFAULTS: ClassVar[dict[str, Any]] = {
+        "detail": 1,
+        "max_orders": 100,
+        "node_count": 2,
+        "combines": False,
+        "dryrun": True,
+        "include_used": False,
+        "with_inverse": False,
+        "limit": 10,
+        "blocks": 1440,
+        "errors": False,
+        "ageMillis": 86400000,
+        "repost": False,
+        "submit": False,
+        "show_rawtx": False,
+        "order_ids": False,
+        "granularity": 60,
+    }
+
+    ALWAYS_SKIP: ClassVar[set[str]] = {"dxGetLockedUtxos"}
+
+    PLACEHOLDER_TO_DEPENDENCY: ClassVar[dict[str, str]] = {
+        "FIRST_ORDER_ID": "order_ids",
+        "HEIGHT": "block_height",
+        "HASH": "block_hash",
+        "TX_HEX": "tx_hex",
+        "LAST_UUID": "last_uuid",
+    }
+
+    DEPENDENCY_TO_CONDITION: ClassVar[dict[str, str]] = {
+        "order_ids": "not test_context.order_ids",
+        "block_height": "not test_context.block_height",
+        "block_hash": "not test_context.block_hash",
+        "tx_hex": "not test_context.tx_hex",
+        "last_uuid": "not test_context.last_uuid",
+    }
+
+    PRIORITY_DEPENDENCIES: ClassVar[list[str]] = ["order_ids", "block_height", "block_hash", "tx_hex", "last_uuid"]
+
     def __init__(
-            self,
-            doc_path: str,
-            prefix: str,
-            output_dir: str,
+        self,
+        doc_path: str,
+        prefix: str,
+        output_dir: str,
     ):
         self.doc_path = Path(doc_path)
         self.prefix = prefix.lower()
@@ -121,7 +182,7 @@ class Generator:
                 "write_protected.yaml contains unknown RPC methods",
                 prefix=self.prefix,
                 unknown_methods=unknown,
-                known_methods_count=len(known_methods)
+                known_methods_count=len(known_methods),
             )
 
     def generate(self) -> None:
@@ -303,168 +364,117 @@ class Generator:
         """Generate integration tests for the MCP server"""
         tests_dir.mkdir(parents=True, exist_ok=True)
 
-        prefix_name = self._config.get("name", self.prefix)
-        write_protected = set(WRITE_PROTECTED.get(self.prefix, []))
-
-        # Ensure spec is loaded
         if not self.spec:
             self.load_spec()
 
-        # Placeholder patterns: map param name patterns to placeholder values
-        PLACEHOLDERS = {
-            'maker': 'MAKER',
-            'token': 'MAKER',
-            'asset': 'MAKER',
-            'taker': 'TAKER',
-            'token2': 'TAKER',
-            'blockchain': 'BLOCKCHAIN',
-            'chain': 'BLOCKCHAIN',
-            'uuid': 'LAST_UUID',  # Must come before 'id' to avoid substring match
-            'id': 'FIRST_ORDER_ID',
-            'order_id': 'FIRST_ORDER_ID',
-            'block_number': 'HEIGHT',
-            'height': 'HEIGHT',
-            'block_hash': 'HASH',
-            'hash': 'HASH',
-            'start_time': 'EPOCH_1D_AGO',
-            'end_time': 'EPOCH_NOW',
-            'timestamp': 'EPOCH_NOW',
-            'tx_hex': 'TX_HEX',
-            'tx_id': 'TX_ID',
-            'tx_ids': 'TX_IDS',
-        }
+        prefix_name = self._config.get("name", self.prefix)
+        write_protected = set(WRITE_PROTECTED.get(self.prefix, []))
 
-        # Default values for common parameters when sample not available
-        DEFAULTS = {
-            'detail': 1,
-            'max_orders': 100,
-            'node_count': 2,
-            'combines': False,
-            'dryrun': True,
-            'include_used': False,
-            'with_inverse': False,
-            'limit': 10,
-            'blocks': 1440,
-            'errors': False,
-            'ageMillis': 86400000,
-            'repost': False,
-            'submit': False,
-            'show_rawtx': False,
-            'order_ids': False,
-            'granularity': 60,
-        }
+        endpoints_config = self._collect_endpoints_test_config(write_protected)
+        self._render_test_templates(env, server_config, tests_dir, prefix_name, endpoints_config)
 
-        # Tools that should always be skipped
-        ALWAYS_SKIP = {
-            'dxGetLockedUtxos',  # Needs real order ID
-        }
-
-        endpoints = []
+    def _collect_endpoints_test_config(self, write_protected: set[str]) -> list[dict]:
+        """Collect test configurations for all non-write-protected endpoints"""
+        configs = []
         for ep in self.spec.endpoints.values():
-            if ep.tool_name in write_protected:
-                continue
+            config = self._create_endpoint_test_config(ep, write_protected)
+            if config:
+                configs.append(config)
+        return configs
 
-            param_names = [p.name for p in ep.params]
-            param_types = {p.name: p.python_type for p in ep.params}
-            template = {}
-            skip = ep.tool_name in ALWAYS_SKIP
-            needs_order_ids = False
-            needs_block_height = False
-            needs_block_hash = False
-            needs_tx_hex = False
-            needs_last_uuid = False
+    def _create_endpoint_test_config(self, endpoint, write_protected: set[str]) -> dict | None:
+        """Create test configuration for a single endpoint, or None if should be skipped"""
+        if endpoint.tool_name in write_protected or endpoint.tool_name in self.ALWAYS_SKIP:
+            return None
 
-            # Get sample values from parsed sample_request (list in order)
-            sample_vals = self._parse_sample_params(ep)
+        param_template, invalid_template, dependencies = self._build_parameter_templates(endpoint)
+        if param_template is None:
+            return None
 
-            for i, param in enumerate(ep.params):
-                name = param.name
-                lname = name.lower()
+        skip_condition = self._determine_skip_condition(dependencies)
+        expected_type = endpoint.response_type if endpoint.response_type in ("dict", "list") else "dict"
+        param_names = [p.name for p in endpoint.params]
+        param_types = {p.name: p.python_type for p in endpoint.params}
 
-                # Check if this parameter should be a placeholder
-                placeholder = None
-                for pattern, ph in PLACEHOLDERS.items():
-                    if pattern in lname:
-                        # Avoid false positives: 'id' and 'order_id' should not match 'order_ids'
-                        if pattern in ('id', 'order_id') and lname == 'order_ids':
-                            continue
-                        placeholder = ph
-                        break
+        return {
+            "tool_name": endpoint.tool_name,
+            "rpc_method": endpoint.rpc_method,
+            "description": (endpoint.description or "")[:100],
+            "param_names": param_names,
+            "param_template": str(param_template),
+            "invalid_param_template": str(invalid_template),
+            "expected_type": expected_type,
+            "skip_condition": skip_condition,
+            "error_codes": list(endpoint.error_codes) if endpoint.error_codes else [],
+            "param_types": param_types,
+            "has_params": len(param_names) > 0,
+            "skip": False,
+        }
 
-                if placeholder:
-                    template[name] = placeholder
-                    # Track dependencies for skip conditions
-                    if placeholder == 'FIRST_ORDER_ID':
-                        needs_order_ids = True
-                    elif placeholder == 'HEIGHT':
-                        needs_block_height = True
-                    elif placeholder == 'HASH':
-                        needs_block_hash = True
-                    elif placeholder == 'TX_HEX':
-                        needs_tx_hex = True
-                    elif placeholder == 'LAST_UUID':
-                        needs_last_uuid = True
-                elif i < len(sample_vals):
-                    # Use sample value directly
-                    val = sample_vals[i]
-                    # Keep as Python literal (str will be quoted in Jinja)
-                    template[name] = val
-                else:
-                    # No sample, try default
-                    default = DEFAULTS.get(lname)
-                    if default is not None:
-                        template[name] = default
-                    else:
-                        skip = True
-                        break
+    def _build_parameter_templates(self, endpoint) -> tuple[dict | None, dict | None, set[str]]:
+        """Build valid parameter template and invalid template for an endpoint"""
+        sample_vals = self._parse_sample_params(endpoint)
+        param_template = {}
+        invalid_template = {}
+        dependencies = set()
 
-            # Determine skip condition
-            skip_condition = None
-            if needs_order_ids:
-                skip_condition = "not test_context.order_ids"
-            elif needs_block_height:
-                skip_condition = "not test_context.block_height"
-            elif needs_block_hash:
-                skip_condition = "not test_context.block_hash"
-            elif needs_tx_hex:
-                skip_condition = "not test_context.tx_hex"
-            elif needs_last_uuid:
-                skip_condition = "not test_context.last_uuid"
+        for i, param in enumerate(endpoint.params):
+            value, dep, ok = self._resolve_param_value(param, i, sample_vals)
+            if not ok:
+                return None, None, set()
+            param_template[param.name] = value
+            if dep:
+                dependencies.add(dep)
+            invalid_template[param.name] = self._get_invalid_value(param.python_type)
 
-            # Determine expected response type
-            expected_type = ep.response_type if ep.response_type in ('dict', 'list') else 'dict'
+        return param_template, invalid_template, dependencies
 
-            # Build invalid template for error testing
-            invalid_template = {}
-            for name in param_names:
-                ptype = param_types.get(name, 'str')
-                if ptype == 'str':
-                    invalid_template[name] = 0  # integer instead of string -> type error
-                elif ptype == 'int':
-                    invalid_template[name] = "invalid"  # string instead of int
-                elif ptype == 'bool':
-                    invalid_template[name] = 0  # int instead of bool
-                elif ptype == 'float':
-                    invalid_template[name] = "invalid"  # string instead of float
-                else:
-                    invalid_template[name] = None  # wrong type
+    def _resolve_param_value(self, param, index: int, sample_vals: list) -> tuple[Any, str | None, bool]:
+        """Resolve a single parameter's value, dependency, and success flag"""
+        name = param.name
+        lname = name.lower()
 
-            endpoints.append({
-                'tool_name': ep.tool_name,
-                'rpc_method': ep.rpc_method,
-                'description': (ep.description or '')[:100],
-                'param_names': param_names,
-                'param_template': str(template),
-                'invalid_param_template': str(invalid_template),
-                'expected_type': expected_type,
-                'skip_condition': skip_condition,
-                'skip': skip,
-                'error_codes': list(ep.error_codes) if ep.error_codes else [],
-                'param_types': param_types,
-                'has_params': len(param_names) > 0,
-            })
+        # Check placeholder patterns
+        for pattern, placeholder in self.PLACEHOLDERS.items():
+            if pattern in lname:
+                if pattern in ("id", "order_id") and lname == "order_ids":
+                    continue
+                dep = self.PLACEHOLDER_TO_DEPENDENCY.get(placeholder)
+                return placeholder, dep, True
 
-        # Render templates
+        # Use sample value if available
+        if index < len(sample_vals):
+            return sample_vals[index], None, True
+
+        # Fall back to default
+        default = self.DEFAULTS.get(lname)
+        if default is not None:
+            return default, None, True
+
+        return None, None, False
+
+    def _get_invalid_value(self, python_type: str) -> Any:
+        """Get an invalid value for a given Python type (for error testing)"""
+        if python_type == "str":
+            return 0
+        elif python_type == "int":
+            return "invalid"
+        elif python_type == "bool":
+            return 0
+        elif python_type == "float":
+            return "invalid"
+        else:
+            return None
+
+    def _determine_skip_condition(self, dependencies: set[str]) -> str | None:
+        """Determine skip condition based on required test context dependencies"""
+        for dep in self.PRIORITY_DEPENDENCIES:
+            if dep in dependencies:
+                return self.DEPENDENCY_TO_CONDITION[dep]
+        return None
+
+    def _render_test_templates(self, env, server_config, tests_dir: Path, prefix_name: str, endpoints_config: list[dict]) -> None:
+        """Render conftest.py and integration test file"""
         conftest_template = env.get_template("tests/conftest.py.jinja")
         conftest_content = conftest_template.render(
             server=server_config,
@@ -474,16 +484,15 @@ class Generator:
         self._write_file(tests_dir / "conftest.py", conftest_content)
 
         integration_template = env.get_template("tests/integration.py.jinja")
-        # Collect error codes: documented + supplemental (observed node behavior)
         documented_codes = set(self.spec.error_codes.keys()) if self.spec else set()
-        supplemental_codes = {-1, -3, 1035}  # -1/-3 for type errors, 1035 for xrGetReply no replies
+        supplemental_codes = {-1, -3, 1035}
         all_error_codes = documented_codes | supplemental_codes
 
         integration_content = integration_template.render(
             server=server_config,
             prefix=self.prefix,
             prefix_name=prefix_name,
-            endpoints=endpoints,
+            endpoints=endpoints_config,
             global_error_codes=sorted(all_error_codes),
             generated_timestamp=datetime.now().isoformat(),
         )

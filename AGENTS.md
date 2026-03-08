@@ -10,32 +10,32 @@ Python MCP Server Generator for Blocknet. Generates XBridge and XRouter MCP serv
 ### Setup
 
 ```bash
-python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
+./.venv/bin/python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
 ```
 
 ### Generate
 
 ```bash
-python main.py dx              # XBridge
-python main.py xr              # XRouter
-python main.py ALL             # Both
-python main.py dx --doc path   # Custom doc
+./.venv/bin/python main.py dx              # XBridge
+./.venv/bin/python main.py xr              # XRouter
+./.venv/bin/python main.py ALL             # Both
+./.venv/bin/python main.py dx --doc path   # Custom doc
 ```
 
 ### Test
 
 ```bash
-pytest                         # All tests
-pytest -v                      # Verbose
-pytest tests/unit              # Unit only
-pytest tests/integration       # Integration only
+./.venv/bin/pytest                         # All tests
+./.venv/bin/pytest -v                      # Verbose
+./.venv/bin/pytest tests/unit              # Unit only
+./.venv/bin/pytest tests/integration       # Integration only
 
 # Single test
-pytest tests/unit/test_generator.py                        # File
-pytest tests/unit/test_generator.py::TestGeneratorInit     # Class
-pytest tests/unit/test_generator.py:42                     # By line
-pytest tests/unit/test_generator.py::TestGeneratorInit::test_generator_init_with_xbridge  # Method
-
+./.venv/bin/pytest tests/unit/test_generator.py                        # File
+./.venv/bin/pytest tests/unit/test_generator.py::TestGeneratorInit     # Class
+./.venv/bin/pytest tests/unit/test_generator.py:42                     # By line
+./.venv/bin/pytest tests/unit/test_generator.py::TestGeneratorInit::test_generator_init_with_xbridge  # Method
+./.venv/bin/pytest generated/tests/ -vv --tb=long -s # Verbose
 # Coverage
 pytest --cov=scripts --cov-report=html
 ```
@@ -52,7 +52,7 @@ ruff format .          # Format
 
 ```bash
 cp .env.example .env  # Add RPC credentials
-python test_mcp_servers.py  # Requires live node
+./.venv/bin/python test_mcp_servers.py  # Requires live node
 ```
 
 ## Style Guide
@@ -208,6 +208,6 @@ blocknet_mcp/
 - Generated code in `generated/` is **never edited manually**; edit templates/generator instead.
 - Python 3.10+ required.
 - All deps in `requirements.txt`; no new deps without discussion.
-- `.venv/` is gitignored; always activate before running commands.
+- `.venv/` is the current python venv ; always use venv when running commands.
 - Validate all inputs in generator/parser.
 - Use read-only RPC accounts when possible.

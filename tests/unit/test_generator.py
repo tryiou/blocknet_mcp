@@ -1,6 +1,7 @@
 """Unit tests for the Generator module"""
 
 from pathlib import Path
+from unittest.mock import MagicMock
 
 from scripts.generate import generator
 from scripts.generate.generator import PREFIX_CONFIG, WRITE_PROTECTED, Generator
@@ -120,8 +121,7 @@ class TestParseSampleParams:
 
     def test_parse_multiple_params_mixed_types(self):
         gen = Generator("path/to/docs.md", "dx", "/tmp/output")
-        endpoint = type("obj", (object,),
-                        {"sample_request": "blocknet-cli dxGetOrderBook TICKER1 TICKER2 1440 true 10"})()
+        endpoint = type("obj", (object,), {"sample_request": "blocknet-cli dxGetOrderBook TICKER1 TICKER2 1440 true 10"})()
         result = gen._parse_sample_params(endpoint)
         assert result == ["TICKER1", "TICKER2", 1440, True, 10]
         assert isinstance(result[2], int)
@@ -135,8 +135,7 @@ class TestParseSampleParams:
         endpoint = type("obj", (object,), {"sample_request": sample})()
         result = gen._parse_sample_params(endpoint)
         # Numbers are converted to appropriate types (float for decimal, int for whole)
-        assert result == ["SYS", 0.1, "SVTbaYZ8oApVn3uNyimst3GKyvvfzXQgdK", "LTC", 0.01,
-                          "LVvFhzRoMRGTtGihHp7jVew3YoZRX8y35Z", "exact"]
+        assert result == ["SYS", 0.1, "SVTbaYZ8oApVn3uNyimst3GKyvvfzXQgdK", "LTC", 0.01, "LVvFhzRoMRGTtGihHp7jVew3YoZRX8y35Z", "exact"]
 
     def test_parse_real_dxflushcancelledorders_sample(self):
         """Test with actual dxFlushCancelledOrders sample"""
@@ -153,8 +152,10 @@ class TestParseSampleParams:
         sample = "blocknet-cli xrSendTransaction SYS 0200000001ce2faed018f4776b41245f78695fdabcc68567b64d13851a7f8277693a23f3e0000000006b483045022100d6e0f7c193e0ae5168e0e8c87a29837f4b8be5c5cdcfa2826a8ddc7cf6cbf43802207ddaa377bc042f9df63eb6f755d23170b9109cb05c18c7ce2fe9993e65434c8b01210323f7e071df863cf20ce13613c68579cdedb6d7c6cf3912f26dac53ec4309c777ffffffff0120a10700000000001976a914eff8cb97723237fe3059774d2a66d02f936e1f1188ac00000000"  # noqa: E501
         endpoint = type("obj", (object,), {"sample_request": sample})()
         result = gen._parse_sample_params(endpoint)
-        assert result == ["SYS",
-                          "0200000001ce2faed018f4776b41245f78695fdabcc68567b64d13851a7f8277693a23f3e0000000006b483045022100d6e0f7c193e0ae5168e0e8c87a29837f4b8be5c5cdcfa2826a8ddc7cf6cbf43802207ddaa377bc042f9df63eb6f755d23170b9109cb05c18c7ce2fe9993e65434c8b01210323f7e071df863cf20ce13613c68579cdedb6d7c6cf3912f26dac53ec4309c777ffffffff0120a10700000000001976a914eff8cb97723237fe3059774d2a66d02f936e1f1188ac00000000"]
+        assert result == [
+            "SYS",
+            "0200000001ce2faed018f4776b41245f78695fdabcc68567b64d13851a7f8277693a23f3e0000000006b483045022100d6e0f7c193e0ae5168e0e8c87a29837f4b8be5c5cdcfa2826a8ddc7cf6cbf43802207ddaa377bc042f9df63eb6f755d23170b9109cb05c18c7ce2fe9993e65434c8b01210323f7e071df863cf20ce13613c68579cdedb6d7c6cf3912f26dac53ec4309c777ffffffff0120a10700000000001976a914eff8cb97723237fe3059774d2a66d02f936e1f1188ac00000000",
+        ]
 
     def test_parse_with_quoted_string(self):
         """Test shlex.split handles quoted strings correctly (future-proof)"""
@@ -203,7 +204,7 @@ class TestWriteProtected:
         assert "dxGetNetworkTokens" not in WRITE_PROTECTED["dx"]
         assert "xrGetBlockCount" not in WRITE_PROTECTED["xr"]
 
-    def test_validation_warns_on_unknown_methods(self, capsys):
+    def test_validation_warns_on_unknown_methods(self, monkeypatch):
         """Test that unknown RPC methods in YAML trigger a warning during generation."""
 
         # Temporarily modify WRITE_PROTECTED to include a fake method
@@ -213,16 +214,20 @@ class TestWriteProtected:
             "xr": original["xr"],
         }
         try:
-            gen = Generator(
-                doc_path="blocknet-api-docs/source/includes/_xbridge.md",
-                prefix="dx",
-                output_dir="/tmp/output"
-            )
+            # Mock the logger's warning method to capture calls
+            mock_logger = MagicMock()
+            monkeypatch.setattr(generator.structlog, "get_logger", lambda: mock_logger)
+            gen = Generator(doc_path="blocknet-api-docs/source/includes/_xbridge.md", prefix="dx", output_dir="/tmp/output")
             gen.load_spec()
-            captured = capsys.readouterr()
-            # structlog prints to stdout
-            assert "write_protected.yaml contains unknown RPC methods" in captured.out
-            assert "dxFakeMethod123" in captured.out
+            # Check that warning was called
+            assert mock_logger.warning.called, "logger.warning was not called"
+            args, kwargs = mock_logger.warning.call_args
+            message = args[0] if args else kwargs.get("event", "")
+            assert "write_protected.yaml contains unknown RPC methods" in message
+            # Also check that the fake method appears somewhere in the call args
+            if "dxFakeMethod123" not in message:
+                all_str = str(mock_logger.warning.call_args)
+                assert "dxFakeMethod123" in all_str
         finally:
             generator.WRITE_PROTECTED = original
 

@@ -15,9 +15,9 @@ Examples:
 """
 
 import argparse
-from pathlib import Path
 import sys
 import traceback
+from pathlib import Path
 
 from scripts.generate.generator import WRITE_PROTECTED, Generator
 
