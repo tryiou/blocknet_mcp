@@ -554,7 +554,8 @@ MIT License - see LICENSE file for details.
 ## Related Links
 
 - [Model Context Protocol](https://modelcontextprotocol.io) - MCP specification and documentation
-- [Blocknet Documentation](https://docs.blocknet.org) - Blocknet API reference
+- [Blocknet Documentation](https://docs.blocknet.org) 
+- [Blocknet API Reference](https://api.blocknet.org)
 - [FastMCP](https://github.com/modelcontextprotocol/python-sdk) - Python MCP SDK
 - [Blocknet GitHub](https://github.com/BlocknetDX) - Blocknet source code
 
