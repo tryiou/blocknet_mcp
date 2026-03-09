@@ -20,8 +20,9 @@ This directory contains Docker configuration to run Blocknet MCP servers with a 
 
 ```bash
 # Create .env file
-cp 
-EOF
+cp .env.example .env
+
+# edit/save the .env with your blocknet core rpc credentials/port
 ```
 
 2. Start all services:
