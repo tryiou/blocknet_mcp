@@ -13,7 +13,7 @@ services:
     stop_signal: SIGINT
     stop_grace_period: 10m
     volumes:
-      - /mnt/nvme/chains/blocknet_x3:/opt/blockchain/blocknet
+      - ${BLOCKNET_CHAINDIR}:/opt/blockchain/blocknet
     logging:
       driver: "json-file"
       options:

@@ -162,16 +162,19 @@ Options:
 Create a `.env` file in the project root:
 
 ```bash
-# RPC Connection (required)
-RPC_HOST=localhost
-RPC_PORT=41414
-RPC_USER=your_rpc_username
-RPC_PASSWORD=your_rpc_password
-RPC_TIMEOUT=30
+ # RPC Connection (required)
+ RPC_HOST=localhost
+ RPC_PORT=41414
+ RPC_USER=your_rpc_username
+ RPC_PASSWORD=your_rpc_password
+ RPC_TIMEOUT=30
 
-# MCP Server Settings
-MCP_LOG_LEVEL=INFO
-MCP_ALLOW_WRITE=false  # Set to true only for trusted environments
+ # Blockchain data directory (volume mount for Docker blocknet-core container)
+ BLOCKNET_CHAINDIR=~/.blocknet/
+
+ # MCP Server Configuration
+ MCP_LOG_LEVEL=INFO
+ MCP_ALLOW_WRITE=false  # Set to true only for trusted environments
 ```
 
 ### Generated Server Configuration

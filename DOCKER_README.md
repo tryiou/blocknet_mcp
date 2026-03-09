@@ -11,7 +11,7 @@ This directory contains Docker configuration to run Blocknet MCP servers with a 
 ## Prerequisites
 
 1. **Docker** and **Docker Compose** installed
-2. **Blocknet blockchain data** at `/mnt/nvme/chains/blocknet_x3` (or modify the volume path)
+2. **Blocknet blockchain data** path configured via `BLOCKNET_CHAINDIR` (default: `~/.blocknet/`)
 3. RPC credentials (username/password) for the Blocknet node
 
 ## Quick Start
@@ -80,10 +80,10 @@ The `blocknet-core` service mounts your existing blockchain data:
 
 ```yaml
 volumes:
-  - /mnt/nvme/chains/blocknet_x3:/opt/blockchain
+  - ${BLOCKNET_CHAINDIR}:/opt/blockchain/blocknet
 ```
 
-Modify this path if your data is elsewhere.
+The path is taken from the `BLOCKNET_CHAINDIR` environment variable (set in `.env`). Default is `~/.blocknet/`.
 
 ### Network Mode
 
@@ -158,7 +158,7 @@ If the node is still starting, increase `start_period` in healthcheck.
 
 ### Permission errors on volume
 
-Ensure the Docker container has read/write access to `/mnt/nvme/chains/blocknet_x3`. The Blocknet image expects to write to this directory.
+Ensure the Docker container has read/write access to the path specified in `BLOCKNET_CHAINDIR`. The Blocknet image expects to write to this directory.
 
 ### Port already in use
 
