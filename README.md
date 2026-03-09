@@ -108,7 +108,6 @@ python main.py dx --doc path/to/custom_xbridge.md
 
 Generated code is placed in the `generated/` directory:
 
-```
 
 generated/
 ├── xbridge_mcp/ # XBridge MCP server
