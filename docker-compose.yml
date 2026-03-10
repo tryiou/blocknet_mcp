@@ -42,6 +42,7 @@ services:
       - RPC_PORT=${RPC_PORT}
       - RPC_USER=${RPC_USER}
       - RPC_PASSWORD=${RPC_PASSWORD}
+      - RPC_TIMEOUT=${RPC_TIMEOUT:-30}
       - MCP_ALLOW_WRITE=false
       - MCP_LOG_LEVEL=INFO
       - MCP_TRANSPORT=http
@@ -64,6 +65,7 @@ services:
       - RPC_PORT=${RPC_PORT}
       - RPC_USER=${RPC_USER}
       - RPC_PASSWORD=${RPC_PASSWORD}
+      - RPC_TIMEOUT=${RPC_TIMEOUT:-30}
       - MCP_ALLOW_WRITE=false
       - MCP_LOG_LEVEL=INFO
       - MCP_TRANSPORT=http

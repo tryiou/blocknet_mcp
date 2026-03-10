@@ -21,28 +21,49 @@ from pathlib import Path
 
 from scripts.generate.generator import WRITE_PROTECTED, Generator
 
+FILENAME_MAP = {
+    "dx": "_xbridge.md",
+    "xr": "_xrouter.md",
+}
+
 PREFIX_MAP = {
     "dx": {
         "name": "xbridge",
-        "default_doc": "blocknet-api-docs/source/includes/_xbridge.md",
+        "default_doc": "blocknet-api-docs",
     },
     "xr": {
         "name": "xrouter",
-        "default_doc": "blocknet-api-docs/source/includes/_xrouter.md",
+        "default_doc": "blocknet-api-docs",
     },
 }
 
 
 def get_doc_path(prefix: str, doc_path: str | None = None) -> str:
-    """Resolve document path for given prefix"""
+    """Resolve document path for given prefix.
+
+    The doc_path should be the root of the cloned api-docs repo.
+    We then look for source/includes/_xbridge.md or _xrouter.md inside.
+    """
+    if prefix not in FILENAME_MAP:
+        raise ValueError(f"Invalid prefix: {prefix}")
+
+    filename = FILENAME_MAP[prefix]
+
+    # Determine base directory (provided or default)
     if doc_path:
-        return doc_path
+        base = Path(doc_path)
+        if base.is_file():
+            raise ValueError(f"--doc-path must be a directory, not a file: {doc_path}")
+    else:
+        base = Path(PREFIX_MAP[prefix]["default_doc"])
 
-    default = PREFIX_MAP.get(prefix, {}).get("default_doc")
-    if default and Path(default).exists():
-        return default
+    # Resolve to the specific markdown file
+    resolved = base / "source/includes" / filename
 
-    raise ValueError(f"No doc path specified for prefix '{prefix}'")
+    if not resolved.exists():
+        raise FileNotFoundError(f"Documentation file not found: {resolved}")
+
+    return str(resolved)
 
 
 def generate_server(prefix: str, doc_path: str | None = None) -> None:
@@ -102,11 +123,11 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python main.py dx                    # Generate XBridge server
-  python main.py xr                    # Generate XRouter server  
-  python main.py ALL                   # Generate combined server
-  python main.py dx --doc custom.md    # Generate with custom doc
-  python main.py --prefix xr --doc path/to/_xrouter.md
+  python main.py dx                    # Generate XBridge server (default docs)
+  python main.py xr                    # Generate XRouter server (default docs)
+  python main.py ALL                   # Generate both servers
+  python main.py dx --doc-path /path/to/blocknet-api-docs   # Custom docs location
+  python main.py xr --doc-path ./blocknet-api-docs
         """,
     )
 
@@ -118,9 +139,9 @@ Examples:
     )
 
     parser.add_argument(
-        "--doc",
+        "--doc-path",
         "-d",
-        help="Path to API documentation markdown file (or directory for ALL)",
+        help="Path to Blocknet API docs repository root (containing source/includes/). Default: blocknet-api-docs",
     )
 
     parser.add_argument(
@@ -145,7 +166,7 @@ Examples:
         sys.exit(0)
 
     prefix = args.prefix or args.prefix_opt
-    doc_path = args.doc
+    doc_path_arg = args.doc_path
 
     if not prefix:
         parser.print_help()
@@ -155,9 +176,9 @@ Examples:
 
     try:
         if prefix == "all":
-            generate_all(doc_path)
+            generate_all(doc_path_arg)
         else:
-            generate_server(prefix, doc_path)
+            generate_server(prefix, doc_path_arg)
 
         print()
         print("Done!")
