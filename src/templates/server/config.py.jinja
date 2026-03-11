@@ -43,7 +43,7 @@ class MCPSettings(BaseSettings):
     allow_write: bool = False
     transport: str = "stdio"  # "stdio" or "http"
     port: int = 8080  # Port for HTTP transport
-    host: str = "127.0.0.1"  # Host to bind HTTP server
+    host: str = "0.0.0.0"  # Host to bind HTTP server
     
     model_config = SettingsConfigDict(
         env_prefix="MCP_",

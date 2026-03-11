@@ -26,8 +26,8 @@ services:
       test: ["CMD", "blocknet-cli", "--datadir=/opt/blockchain/blocknet/", "getblockcount"]
       interval: 30s
       timeout: 30s
-      retries: 3
-      start_period: 180s
+      retries: 6
+      start_period: 30s
 
   xbridge-mcp:
     build:

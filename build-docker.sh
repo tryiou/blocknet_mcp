@@ -135,7 +135,7 @@ build)
 	;;
 up)
 	log_info "Building and starting containers..."
-	docker compose --env-file "$ENV_FILE" up --build -d "${SERVICES[@]}"
+	docker compose --env-file "$ENV_FILE" up --build -d "${SERVICES[@]}" --remove-orphans
 	log_info "Containers started:"
 	for svc in "${SERVICES[@]}"; do
 		echo "  - $svc"

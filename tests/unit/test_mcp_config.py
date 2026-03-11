@@ -12,7 +12,7 @@ class TestMCPSettingsDefaults:
 
     def test_default_host(self):
         settings = MCPSettings()
-        assert settings.host == "127.0.0.1"
+        assert settings.host == "0.0.0.0"
 
     def test_default_port(self):
         settings = MCPSettings()

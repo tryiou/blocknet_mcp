@@ -14,7 +14,7 @@ class TestCreateMCPServer:
         # Mock settings and dependencies
         mock_mcp_settings = MagicMock()
         mock_mcp_settings.server_name = "Test MCP"
-        mock_mcp_settings.host = "127.0.0.1"
+        mock_mcp_settings.host = "0.0.0.0"
         mock_mcp_settings.port = 1234
         mock_mcp_settings.log_level = "WARNING"
 
@@ -34,7 +34,7 @@ class TestCreateMCPServer:
             mcp = create_mcp_server()
             mock_fastmcp.assert_called_once_with(
                 name="Test MCP",
-                host="127.0.0.1",
+                host="0.0.0.0",
                 port=1234,
                 log_level="WARNING",
             )
@@ -43,7 +43,7 @@ class TestCreateMCPServer:
     def test_registers_tools_and_security(self, monkeypatch):
         mock_mcp_settings = MagicMock()
         mock_mcp_settings.server_name = "Test"
-        mock_mcp_settings.host = "127.0.0.1"
+        mock_mcp_settings.host = "0.0.0.0"
         mock_mcp_settings.port = 8080
         mock_mcp_settings.log_level = "INFO"
         mock_rpc_settings = MagicMock()
