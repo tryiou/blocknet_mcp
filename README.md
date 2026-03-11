@@ -152,8 +152,7 @@ python main.py ALL
 
 # Use custom documentation location
 python main.py dx --doc-path blocknet-api-docs
-
-
+```
 
 Generated code is placed in the `generated/` directory:
 
