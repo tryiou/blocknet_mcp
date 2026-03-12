@@ -1,21 +1,21 @@
 """{{ server.display_name }} MCP Server - Security utilities for write protection"""
 
+from contextvars import ContextVar
 from functools import wraps
-from typing import Callable, Any, Optional
+from typing import Any, Callable
+
 import structlog
 
 from {{ server.package_name }}.config import MCPSettings
 
 logger = structlog.get_logger(__name__)
 
-# Store settings globally for decorator access
-_mcp_settings: Optional[MCPSettings] = None
+_mcp_settings_var: ContextVar[MCPSettings | None] = ContextVar("mcp_settings", default=None)
 
 
 def init_security(settings: MCPSettings) -> None:
     """Initialize security module with settings"""
-    global _mcp_settings
-    _mcp_settings = settings
+    _mcp_settings_var.set(settings)
     logger.info(
         "Security initialized",
         allow_write=settings.allow_write,
@@ -25,10 +25,11 @@ def init_security(settings: MCPSettings) -> None:
 
 def is_write_allowed() -> bool:
     """Check if write operations are allowed"""
-    if _mcp_settings is None:
+    settings = _mcp_settings_var.get()
+    if settings is None:
         logger.warning("Security not initialized, defaulting to read-only")
         return False
-    return _mcp_settings.allow_write
+    return settings.allow_write
 
 
 def write_protected(func: Callable) -> Callable:

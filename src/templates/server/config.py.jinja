@@ -1,6 +1,8 @@
 """{{ server.display_name }} MCP Server - Configuration"""
 
 from pathlib import Path
+
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -8,11 +10,11 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 class {{ rpc.client_class_name }}Settings(BaseSettings):
     """{{ server.display_name }} RPC Configuration"""
-    
+
     rpc_host: str = "{{ server.host }}"
     rpc_port: int = {{ server.port }}
-    rpc_user: str = ""
-    rpc_password: str = ""
+    rpc_user: str = Field(min_length=1)
+    rpc_password: str = Field(min_length=1)
     rpc_timeout: int = {{ server.timeout }}
     
     model_config = SettingsConfigDict(

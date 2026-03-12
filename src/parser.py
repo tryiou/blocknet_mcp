@@ -19,6 +19,12 @@ import yaml
 
 logger = structlog.get_logger(__name__)
 
+# Description length limits
+DESC_LIMIT = 450
+PARAM_DESC_LIMIT = 350
+NOTES_LIMIT = 400
+SAMPLE_LIMIT = 500
+
 
 def _load_preserved_config() -> dict[str, list[str]]:
     """Load preserved endpoints from YAML config.
@@ -316,7 +322,7 @@ class MarkdownParser:
                 continue
             # Clean up whitespace and return first 500 chars
             clean = re.sub(r"\s+", " ", para)
-            return clean[:500]
+            return clean[:DESC_LIMIT]
 
         return ""
 
@@ -333,7 +339,7 @@ class MarkdownParser:
             content = match.group(2).strip()
             # Clean content
             content = re.sub(r"\n+", " ", content)
-            content = content[:300]  # Limit length
+            content = content[:NOTES_LIMIT]  # Limit length
 
             # Only include important notes
             important = ["note", "input", "fee", "asset", "trade", "warning"]
@@ -429,7 +435,7 @@ class MarkdownParser:
         description = re.sub(r"Defaults? to\s*`[^`]+`", "", description, flags=re.IGNORECASE)
         description = re.sub(r"Default:\s*`?[^`\n.,;]+`?", "", description, flags=re.IGNORECASE)
         description = description.strip(" :.,;")
-        return description.strip()[:200]
+        return description.strip()[:PARAM_DESC_LIMIT]
 
     def _extract_sample(self, section: str, section_type: str) -> str:
         """Extract sample request or response"""
@@ -438,7 +444,7 @@ class MarkdownParser:
         match = re.search(pattern, section, re.DOTALL | re.IGNORECASE)
 
         if match:
-            return match.group(1).strip()[:500]
+            return match.group(1).strip()[:SAMPLE_LIMIT]
 
         return ""
 
@@ -549,7 +555,7 @@ if __name__ == "__main__":
 
     for name, ep in spec.endpoints.items():
         print(f"{name} -> {ep.tool_name}")
-        print(f"  Description: {ep.description[:200]}")
+        print(f"  Description: {ep.description[:DESC_LIMIT]}")
         print(f"  Params: {len(ep.params)}")
         for p in ep.params:
             req = "required" if p.required else "optional"

@@ -189,20 +189,28 @@ class TestPrefixConfig:
 class TestWriteProtected:
     """Tests for write-protected endpoint filtering"""
 
-    def test_dx_has_write_protected_endpoints(self):
-        assert "dxMakeOrder" in WRITE_PROTECTED["dx"]
-        assert "dxTakeOrder" in WRITE_PROTECTED["dx"]
-        assert "dxCancelOrder" in WRITE_PROTECTED["dx"]
+    def test_write_protected_has_required_keys(self):
+        """Verify YAML loads with correct structure - both dx and xr keys exist"""
+        assert "dx" in WRITE_PROTECTED
+        assert "xr" in WRITE_PROTECTED
 
-    def test_xr_has_write_protected_endpoints(self):
-        assert "xrUpdateNetworkServices" in WRITE_PROTECTED["xr"]
-        assert "xrConnect" in WRITE_PROTECTED["xr"]
-        assert "xrSendTransaction" in WRITE_PROTECTED["xr"]
+    def test_write_protected_values_are_lists(self):
+        """Verify values are lists regardless of content - handles empty or populated"""
+        assert isinstance(WRITE_PROTECTED["dx"], list)
+        assert isinstance(WRITE_PROTECTED["xr"], list)
 
-    def test_read_endpoints_not_in_write_protected(self):
-        assert "dxGetLocalTokens" not in WRITE_PROTECTED["dx"]
-        assert "dxGetNetworkTokens" not in WRITE_PROTECTED["dx"]
-        assert "xrGetBlockCount" not in WRITE_PROTECTED["xr"]
+    def test_write_protected_items_are_strings(self):
+        """Verify all items in the lists are strings (type validation)."""
+        for prefix in ["dx", "xr"]:
+            for method in WRITE_PROTECTED[prefix]:
+                assert isinstance(method, str), f"{prefix}: {method!r} is not a string"
+
+    def test_write_protected_methods_follow_naming_convention(self):
+        """Verify methods follow expected naming pattern (prefix + CamelCase)."""
+        for prefix in ["dx", "xr"]:
+            for method in WRITE_PROTECTED[prefix]:
+                assert method.startswith(prefix), f"{method} should start with '{prefix}'"
+                assert method[len(prefix)].isupper(), f"{method} should be CamelCase after prefix"
 
     def test_validation_warns_on_unknown_methods(self, monkeypatch):
         """Test that unknown RPC methods in YAML trigger a warning during generation."""

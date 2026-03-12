@@ -315,7 +315,7 @@ class Generator:
             lines.append(f'    "{rpc_method}": EndpointSpec(')
             lines.append(f'        rpc_method="{endpoint.rpc_method}",')
             lines.append(f'        tool_name="{endpoint.tool_name}",')
-            desc = endpoint.description[:100].replace('"', '\\"')
+            desc = endpoint.description.replace('"', '\\"')
             lines.append(f'        description="{desc}",')
             lines.append(f"        params={[p.name for p in endpoint.params]},")
             lines.append("    ),")
@@ -391,7 +391,7 @@ class Generator:
         return {
             "tool_name": endpoint.tool_name,
             "rpc_method": endpoint.rpc_method,
-            "description": (endpoint.description or "")[:100],
+            "description": endpoint.description or "",
             "param_names": param_names,
             "param_template": str(param_template),
             "invalid_param_template": str(invalid_template),

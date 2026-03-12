@@ -22,7 +22,7 @@ class Test{{ server.display_name.replace(' ', '') }}:
     @pytest.mark.skip(reason="No sample data available for this endpoint")
     {% endif %}
     async def test_{{ ep.tool_name }}(self, rpc_client, test_context):
-        """{{ ep.description[:80] if ep.description else ep.rpc_method }}"""
+        """{{ ep.description if ep.description else ep.rpc_method }}"""
         {% if ep.skip_condition %}
         # Check if required discovery data is available
         if {{ ep.skip_condition }}:
