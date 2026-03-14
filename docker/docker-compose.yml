@@ -5,17 +5,14 @@ services:
     user: "${UID:-1000}:${GID:-1000}"
     env_file:
       - ../.env
-    command: blocknetd -datadir=/opt/blockchain/blocknet
+    command: blocknetd
     restart: on-failure:3
     environment:
-      - HOME=/opt/blockchain/.home/
-      - RPC_USER=${RPC_USER}
-      - RPC_PASSWORD=${RPC_PASSWORD}
-      - RPC_PORT=${RPC_PORT}
+      - HOME=/opt/blockchain/home/
     stop_signal: SIGINT
     stop_grace_period: 10m
     volumes:
-      - ${BLOCKNET_CHAINDIR}:/opt/blockchain/blocknet
+      - ${BLOCKNET_CHAINDIR}:/opt/blockchain/home/.blocknet
     logging:
       driver: "json-file"
       options:
@@ -23,7 +20,12 @@ services:
         max-file: "10"
     network_mode: "host"
     healthcheck:
-      test: ["CMD", "blocknet-cli", "--datadir=/opt/blockchain/blocknet/", "getblockcount"]
+      test:
+        [
+          "CMD",
+          "blocknet-cli",
+          "getblockcount",
+        ]
       interval: 30s
       timeout: 30s
       retries: 6
@@ -36,23 +38,34 @@ services:
       args:
         - SERVER_TYPE=xbridge
     container_name: xbridge-mcp
+    command: ["python", "-m", "xbridge_mcp.main"]
     env_file:
       - ../.env
     depends_on:
       blocknet-core:
         condition: service_healthy
     environment:
-      - RPC_HOST=localhost
+      # Note: BLOCKNET_CHAINDIR is the CONTAINER path, not host path.
+      # The actual host path comes from ${BLOCKNET_CHAINDIR} which is mounted to
+      # /opt/blockchain/blocknet inside the container via volumes below.
+      - RPC_HOST=${RPC_HOST}
       - RPC_PORT=${RPC_PORT}
-      - RPC_USER=${RPC_USER}
-      - RPC_PASSWORD=${RPC_PASSWORD}
       - RPC_TIMEOUT=${RPC_TIMEOUT:-30}
-      - MCP_ALLOW_WRITE=false
-      - MCP_LOG_LEVEL=INFO
-      - MCP_TRANSPORT=http
-      - MCP_PORT=8081
+      - BLOCKNET_CHAINDIR=/opt/blockchain/blocknet
+      - XBRIDGE_MCP_ALLOW_WRITE=${XBRIDGE_MCP_ALLOW_WRITE:-false}
+      - XBRIDGE_MCP_LOG_LEVEL=${XBRIDGE_MCP_LOG_LEVEL:-INFO}
+      - XBRIDGE_MCP_TRANSPORT=${XBRIDGE_MCP_TRANSPORT:-http}
+      - XBRIDGE_MCP_PORT=${XBRIDGE_MCP_PORT:-8081}
+    volumes: &blocknet_volumes
+      - ${BLOCKNET_CHAINDIR}/blocknet.conf:/opt/blockchain/blocknet/blocknet.conf:ro
     restart: unless-stopped
     network_mode: "host"
+    healthcheck:
+      test: ["CMD", "sh", "-c", "nc -z localhost 8081"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   xrouter-mcp:
     build:
@@ -61,20 +74,27 @@ services:
       args:
         - SERVER_TYPE=xrouter
     container_name: xrouter-mcp
+    command: ["python", "-m", "xrouter_mcp.main"]
     env_file:
       - ../.env
     depends_on:
       blocknet-core:
         condition: service_healthy
     environment:
-      - RPC_HOST=localhost
+      - RPC_HOST=${RPC_HOST}
       - RPC_PORT=${RPC_PORT}
-      - RPC_USER=${RPC_USER}
-      - RPC_PASSWORD=${RPC_PASSWORD}
       - RPC_TIMEOUT=${RPC_TIMEOUT:-30}
-      - MCP_ALLOW_WRITE=false
-      - MCP_LOG_LEVEL=INFO
-      - MCP_TRANSPORT=http
-      - MCP_PORT=8082
+      - BLOCKNET_CHAINDIR=/opt/blockchain/blocknet
+      - XROUTER_MCP_ALLOW_WRITE=${XROUTER_MCP_ALLOW_WRITE:-false}
+      - XROUTER_MCP_LOG_LEVEL=${XROUTER_MCP_LOG_LEVEL:-INFO}
+      - XROUTER_MCP_TRANSPORT=${XROUTER_MCP_TRANSPORT:-http}
+      - XROUTER_MCP_PORT=${XROUTER_MCP_PORT:-8082}
+    volumes: *blocknet_volumes
     restart: unless-stopped
     network_mode: "host"
+    healthcheck:
+      test: ["CMD", "sh", "-c", "nc -z localhost 8082"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

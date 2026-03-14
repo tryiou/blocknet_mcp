@@ -40,6 +40,11 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# Install netcat for healthcheck
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    netcat-openbsd \
+    && rm -rf /var/lib/apt/lists/*
+
 # Create non-root user
 RUN useradd --create-home --shell /bin/bash app && chown -R app:app /app
 USER app
@@ -55,6 +60,3 @@ COPY --from=builder /build/generated /app/
 # Install runtime dependencies (reuse requirements)
 COPY --from=builder /build/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-
-# Run the appropriate server
-CMD python -m ${SERVER_TYPE}_mcp.main
