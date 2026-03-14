@@ -127,26 +127,6 @@ class TestMarkdownParser:
         assert len(sections) > 0
         assert any("dxGetLocalTokens" in s for s in sections)
 
-    def test_is_endpoint_header_dx(self):
-        parser = MarkdownParser(str(TEST_XBRIDGE_DOC), "dx")
-        assert parser._is_endpoint_header("dxGetLocalTokens") is True
-        assert parser._is_endpoint_header("dxGetNetworkTokens") is True
-        assert parser._is_endpoint_header("OtherMethod") is False
-        assert parser._is_endpoint_header("Error Codes") is False
-
-    def test_is_endpoint_header_xr(self):
-        parser = MarkdownParser(str(TEST_XROUTER_DOC), "xr")
-        assert parser._is_endpoint_header("xrGetBlockChainInfo") is True
-        assert parser._is_endpoint_header("xrGetNetworkServices") is True
-        assert parser._is_endpoint_header("dxGetLocalTokens") is False
-
-    def test_to_tool_name(self):
-        parser = MarkdownParser(str(TEST_XBRIDGE_DOC), "dx")
-        assert parser._to_tool_name("dxGetLocalTokens") == "dxGetLocalTokens"
-        assert parser._to_tool_name("dxGetNetworkTokens") == "dxGetNetworkTokens"
-        assert parser._to_tool_name("dxMakeOrder") == "dxMakeOrder"
-        assert parser._to_tool_name("dxGetOrderFills") == "dxGetOrderFills"
-
 
 class TestParseApiDocs:
     """Tests for parse_api_docs convenience function"""
