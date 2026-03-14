@@ -54,7 +54,7 @@ def _load_write_protected_config() -> dict[str, list[str]]:
     config_path = Path(__file__).parent / "write_protected.yaml"
     if config_path.exists():
         try:
-            with open(config_path) as f:
+            with open(config_path, encoding="utf-8") as f:
                 data = yaml.safe_load(f)
                 if isinstance(data, dict):
                     dx_val = data.get("dx")
@@ -120,8 +120,6 @@ class Generator:
         "order_ids": False,
         "granularity": 60,
     }
-
-    ALWAYS_SKIP: ClassVar[set[str]] = {"dxGetLockedUtxos"}
 
     PLACEHOLDER_TO_DEPENDENCY: ClassVar[dict[str, str]] = {
         "FIRST_ORDER_ID": "order_ids",
@@ -229,9 +227,6 @@ class Generator:
             "client_class_name": f"Async{self._config.get('display_name', self.prefix.upper())}Client",
             "tool_prefix": self.prefix,
             "rpc_prefix": self.prefix,
-            "host": "localhost",
-            "port": 41414,
-            "timeout": 30,
         }
 
     def _generate_main(self, env: jinja2.Environment, config: dict, output_dir: Path) -> None:
@@ -302,7 +297,7 @@ class Generator:
             "    rpc_method: str",
             "    tool_name: str",
             "    description: str",
-            "    params: list",
+            "    params: list[dict]",
             "",
             "ERROR_CODES = {",
         ]
@@ -319,7 +314,8 @@ class Generator:
             lines.append(f'        tool_name="{endpoint.tool_name}",')
             desc = endpoint.description.replace('"', '\\"')
             lines.append(f'        description="{desc}",')
-            lines.append(f"        params={[p.name for p in endpoint.params]},")
+            param_dicts = [{p.name: p.python_type} for p in endpoint.params]
+            lines.append(f"        params={param_dicts},")
             lines.append("    ),")
 
         lines.append("}")
@@ -378,7 +374,7 @@ class Generator:
 
     def _create_endpoint_test_config(self, endpoint, write_protected: set[str]) -> dict | None:
         """Create test configuration for a single endpoint, or None if should be skipped"""
-        if endpoint.tool_name in write_protected or endpoint.tool_name in self.ALWAYS_SKIP:
+        if endpoint.tool_name in write_protected:
             return None
 
         param_template, invalid_template, dependencies = self._build_parameter_templates(endpoint)

@@ -43,7 +43,7 @@ def run_cmd(cmd):
 
 
 def get_ports_from_compose(compose_path="docker-compose.yml"):
-    """Extract MCP_PORT values from docker-compose.yml."""
+    """Extract XBRIDGE_MCP_PORT and XROUTER_MCP_PORT values from docker-compose.yml."""
     ports = {}
 
     try:
@@ -56,7 +56,7 @@ def get_ports_from_compose(compose_path="docker-compose.yml"):
         xbridge = services.get("xbridge-mcp", {})
         env = xbridge.get("environment", [])
         for var in env:
-            if isinstance(var, str) and var.startswith("MCP_PORT="):
+            if isinstance(var, str) and var.startswith("XBRIDGE_MCP_PORT="):
                 ports["xbridge"] = int(var.split("=", 1)[1])
                 break
 
@@ -64,7 +64,7 @@ def get_ports_from_compose(compose_path="docker-compose.yml"):
         xrouter = services.get("xrouter-mcp", {})
         env = xrouter.get("environment", [])
         for var in env:
-            if isinstance(var, str) and var.startswith("MCP_PORT="):
+            if isinstance(var, str) and var.startswith("XROUTER_MCP_PORT="):
                 ports["xrouter"] = int(var.split("=", 1)[1])
                 break
 

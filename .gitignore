@@ -3,6 +3,7 @@
 .venv/
 *.pyc
 .env
+.coverage
 AGENTS.md
 generated/
 opencode.json

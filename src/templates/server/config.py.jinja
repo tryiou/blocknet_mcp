@@ -1,9 +1,13 @@
 """{{ server.display_name }} MCP Server - Configuration"""
 
+import logging
+import re
 from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
@@ -11,11 +15,12 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 class {{ rpc.client_class_name }}Settings(BaseSettings):
     """{{ server.display_name }} RPC Configuration"""
 
-    rpc_host: str = Field()
-    rpc_port: int = Field()
-    rpc_user: str = Field(min_length=1)
-    rpc_password: str = Field(min_length=1)
-    rpc_timeout: int = Field()
+    rpc_host: str = Field(default="localhost")
+    rpc_port: int = Field(default=41414)
+    rpc_user: str | None = None
+    rpc_password: str | None = None
+    rpc_timeout: int = Field(default=30)
+    rpc_chaindir: str | None = Field(default=None, validation_alias="BLOCKNET_CHAINDIR")
 
     model_config = SettingsConfigDict(
         env_prefix="",
@@ -23,6 +28,111 @@ class {{ rpc.client_class_name }}Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore"
     )
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        self._conf_last_modified: float = 0.0
+        self._apply_chaindir_defaults()
+
+    @property
+    def conf_file_path(self) -> Path | None:
+        """Return path to blocknet.conf file."""
+        if not self.rpc_chaindir:
+            return None
+        return Path(self.rpc_chaindir) / "blocknet.conf"
+
+    def _parse_conf_file(self) -> dict:
+        """Parse blocknet.conf and return settings dict."""
+        conf_path = self.conf_file_path
+        if not conf_path or not conf_path.exists():
+            return {}
+
+        try:
+            mtime = conf_path.stat().st_mtime
+            self._conf_last_modified = mtime
+        except OSError:
+            pass
+
+        try:
+            content = conf_path.read_text()
+            settings = {}
+
+            match = re.search(r"^rpcport\s*=\s*(.+)$", content, re.MULTILINE)
+            if match:
+                settings["rpc_port"] = int(match.group(1).strip())
+
+            match = re.search(r"^rpcuser\s*=\s*(.+)$", content, re.MULTILINE)
+            if match:
+                settings["rpc_user"] = match.group(1).strip()
+
+            match = re.search(r"^rpcpassword\s*=\s*(.+)$", content, re.MULTILINE)
+            if match:
+                settings["rpc_password"] = match.group(1).strip()
+
+            return settings
+        except (IOError, OSError) as e:
+            logger.warning("Failed to read blocknet.conf: %s", e)
+            return {}
+
+    def _apply_chaindir_defaults(self):
+        """Apply defaults from blocknet.conf if chaindir is available."""
+        if not self.rpc_chaindir:
+            return
+
+        conf_path = self.conf_file_path
+        if not conf_path or not conf_path.exists():
+            return
+
+        conf_settings = self._parse_conf_file()
+
+        if self.rpc_port == 41414 and "rpc_port" in conf_settings:
+            self.rpc_port = conf_settings["rpc_port"]
+
+        if not self.rpc_user and "rpc_user" in conf_settings:
+            self.rpc_user = conf_settings["rpc_user"]
+
+        if not self.rpc_password and "rpc_password" in conf_settings:
+            self.rpc_password = conf_settings["rpc_password"]
+
+    def reload(self) -> bool:
+        """Reload settings from blocknet.conf. Returns True if changed, False otherwise."""
+        conf_path = self.conf_file_path
+        if not conf_path or not conf_path.exists():
+            return False
+
+        try:
+            current_mtime = conf_path.stat().st_mtime
+            if current_mtime == self._conf_last_modified:
+                return False
+        except OSError:
+            return False
+
+        old_user = self.rpc_user
+        old_password = self.rpc_password
+        old_port = self.rpc_port
+
+        conf_settings = self._parse_conf_file()
+
+        if "rpc_port" in conf_settings:
+            self.rpc_port = conf_settings["rpc_port"]
+        if "rpc_user" in conf_settings:
+            self.rpc_user = conf_settings["rpc_user"]
+        if "rpc_password" in conf_settings:
+            self.rpc_password = conf_settings["rpc_password"]
+
+        changed = (
+            self.rpc_user != old_user
+            or self.rpc_password != old_password
+            or self.rpc_port != old_port
+        )
+
+        if changed:
+            logger.info(
+                "blocknet.conf reloaded",
+                extra={"rpc_user": self.rpc_user, "rpc_port": self.rpc_port},
+            )
+
+        return changed
 
     @property
     def rpc_url(self) -> str:
@@ -33,8 +143,43 @@ class {{ rpc.client_class_name }}Settings(BaseSettings):
         return f"{self.rpc_url}:{self.rpc_port}"
 
     @property
+    def effective_user(self) -> str:
+        """Get effective RPC user from blocknet.conf."""
+        if self.rpc_user:
+            return self.rpc_user
+
+        if self.rpc_chaindir:
+            raise ValueError(
+                f"BLOCKNET_CHAINDIR is set to '{self.rpc_chaindir}' but no rpcuser found in blocknet.conf. "
+                f"Ensure blocknet.conf exists and contains rpcuser/rpcpassword."
+            )
+        raise ValueError(
+            "BLOCKNET_CHAINDIR is required. Set it to your blocknet chaindir path "
+            "containing blocknet.conf with rpcuser/rpcpassword."
+        )
+
+    @property
+    def effective_password(self) -> str:
+        """Get effective RPC password from blocknet.conf."""
+        if self.rpc_password:
+            return self.rpc_password
+
+        if self.rpc_chaindir:
+            raise ValueError(
+                f"BLOCKNET_CHAINDIR is set to '{self.rpc_chaindir}' but no rpcpassword found in blocknet.conf. "
+                f"Ensure blocknet.conf exists and contains rpcuser/rpcpassword."
+            )
+        raise ValueError(
+            "BLOCKNET_CHAINDIR is required. Set it to your blocknet chaindir path "
+            "containing blocknet.conf with rpcuser/rpcpassword."
+        )
+
+    @property
     def is_configured(self) -> bool:
-        return bool(self.rpc_user and self.rpc_password)
+        """Check if RPC is configured via blocknet.conf."""
+        if self.rpc_user and self.rpc_password:
+            return True
+        return False
 
 
 class MCPSettings(BaseSettings):

@@ -70,9 +70,6 @@ def generate_server(prefix: str, doc_path: str | None = None) -> None:
     """Generate a single MCP server"""
     resolved_doc = get_doc_path(prefix, doc_path)
 
-    if not Path(resolved_doc).exists():
-        raise FileNotFoundError(f"Doc file not found: {resolved_doc}")
-
     pkg_name = PREFIX_MAP.get(prefix, {}).get("name", prefix)
     output_dir = Path("generated") / f"{pkg_name}_mcp"
 
@@ -89,16 +86,30 @@ def generate_all(doc_path: str | None = None) -> None:
     print("Generating ALL MCP servers (dx + xr)...")
     print()
 
+    errors = []
     for prefix in ["dx", "xr"]:
         print(f"--- {prefix.upper()} ---")
         try:
             generate_server(prefix, doc_path)
             print()
+        except FileNotFoundError as e:
+            error_msg = f"Documentation not found for {prefix}: {e}"
+            errors.append(error_msg)
+            print(f"  Error: {error_msg}")
+            print()
         except Exception as e:
-            print(f"  Error generating {prefix}: {e}")
+            error_msg = f"Unexpected error generating {prefix}: {e}"
+            errors.append(error_msg)
+            print(f"  {error_msg}")
             print()
 
-    print("Done! Generated dx_mcp and xr_mcp in ./generated/")
+    if errors:
+        print("Generation completed with errors.")
+        # If all errors are FileNotFoundError, re-raise the first one to trigger helpful hints
+        if all("Documentation not found" in err for err in errors):
+            raise FileNotFoundError(errors[0].split(": ", 1)[1])
+    else:
+        print("Done! Generated dx_mcp and xr_mcp in ./generated/")
 
 
 def list_all_protected():
@@ -183,9 +194,17 @@ Examples:
         print()
         print("Done!")
 
-    except Exception as e:
+    except FileNotFoundError as e:
         print(f"Error: {e}")
+        print("\nHint: The Blocknet API documentation is required to generate MCP servers.")
+        print("You can obtain it by:")
+        print("  1. Running: ./build-local.sh (automatically clones docs)")
+        print("  2. Manually: git clone https://github.com/blocknetdx/api-docs blocknet-api-docs")
+        print("  3. Or specify a custom path with: --doc-path /path/to/docs")
+        sys.exit(1)
 
+    except Exception as e:
+        print(f"Unexpected error: {e}")
         traceback.print_exc()
         sys.exit(1)
 

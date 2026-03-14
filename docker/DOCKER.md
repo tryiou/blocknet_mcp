@@ -12,17 +12,18 @@ This repository contains Docker configuration to run Blocknet MCP servers with a
 
 1. **Docker** and **Docker Compose** installed
 2. **Blocknet blockchain data** path configured via `BLOCKNET_CHAINDIR` (default: `~/.blocknet/`)
-3. RPC credentials (username/password) for the Blocknet node
+3. Authentication via blocknet.conf (rpcuser/rpcpassword)
 
 ## Quick Start
 
-1. Set RPC credentials in environment or `.env` file:
+1. Set BLOCKNET_CHAINDIR in your `.env` file:
 
 ```bash
 # Create .env file
 cp config/.env.example .env
 
-# edit/save the .env with your blocknet core rpc credentials/port
+# Edit .env - set BLOCKNET_CHAINDIR to your blocknet data directory
+# All other settings (host, port, credentials) are auto-detected
 ```
 
 2. Build and start services:
@@ -54,18 +55,29 @@ This will:
 
 ### RPC Credentials
 
-The Blocknet core node uses `RPC_USER` and `RPC_PASSWORD` environment variables. These are passed to the MCP servers as well.
+Authentication via blocknet.conf:
+- Credentials are read from `blocknet.conf` (rpcuser/rpcpassword)
+- Port is also auto-detected from blocknet.conf (rpcport)
 
 ### MCP Server Settings
 
 Configurable via environment variables in `docker-compose.yml`:
 
+### XBridge MCP Settings (prefix: `XBRIDGE_MCP_`)
+- `XBRIDGE_MCP_ALLOW_WRITE` - Default: `false` (set to `true` to enable write operations)
+- `XBRIDGE_MCP_LOG_LEVEL` - Default: `INFO` (DEBUG, INFO, WARNING, ERROR)
+- `XBRIDGE_MCP_TRANSPORT` - Default: `http` (transport mode: `stdio` or `http`)
+- `XBRIDGE_MCP_PORT` - Default: `8081` (HTTP port for XBridge)
+
+### XRouter MCP Settings (prefix: `XROUTER_MCP_`)
+- `XROUTER_MCP_ALLOW_WRITE` - Default: `false` (set to `true` to enable write operations)
+- `XROUTER_MCP_LOG_LEVEL` - Default: `INFO` (DEBUG, INFO, WARNING, ERROR)
+- `XROUTER_MCP_TRANSPORT` - Default: `http` (transport mode: `stdio` or `http`)
+- `XROUTER_MCP_PORT` - Default: `8082` (HTTP port for XRouter)
+
+### RPC Settings (shared)
 - `RPC_HOST` - **Fixed**: `localhost` (hardcoded due to `network_mode: host`)
 - `RPC_PORT` - Default: `41414`
-- `MCP_ALLOW_WRITE` - Default: `false` (set to `true` to enable write operations)
-- `MCP_LOG_LEVEL` - Default: `INFO` (DEBUG, INFO, WARNING, ERROR)
-- `MCP_TRANSPORT` - Default: `stdio` (transport mode: `stdio` or `http`)
-- `MCP_PORT` - Default: `8081` (XBridge) / `8082` (XRouter)
 
 ### Volumes
 
@@ -130,7 +142,7 @@ Log rotation is configured for blocknet-core:
 Check that blocknet-core RPC is accessible:
 
 ```bash
-curl http://${RPC_USER}:${RPC_PASSWORD}@localhost:41414/
+docker compose exec blocknet-core blocknet-cli getblockcount
 ```
 
 Check logs:
@@ -168,20 +180,34 @@ sudo lsof -i :41414
 
 ## Environment Variables
 
+### Shared RPC Settings
+
 | Variable | Default | Required | Description |
 |----------|---------|----------|-------------|
-| `RPC_HOST` | localhost | No | localhost (fixed due to host network mode) |
-| `RPC_PORT` | 41414 | Yes | Blocknet RPC port |
-| `RPC_USER` | - | Yes | RPC username |
-| `RPC_PASSWORD` | - | Yes | RPC password |
+| `BLOCKNET_CHAINDIR` | ~/.blocknet/ | **Yes** | Path to blockchain data directory |
 | `RPC_TIMEOUT` | 30 | No | RPC timeout in seconds |
-| `MCP_ALLOW_WRITE` | false | No | Enable write operations (use with caution) |
-| `MCP_LOG_LEVEL` | INFO | No | Logging level (DEBUG, INFO, WARNING, ERROR) |
-| `MCP_TRANSPORT` | stdio | No | Transport mode: `stdio` or `http` |
-| `MCP_PORT` | 8081/8082 | No* | HTTP port (8081 for XBridge, 8082 for XRouter) |
-| `BLOCKNET_CHAINDIR` | ~/.blocknet/ | No | Path to blockchain data |
 
-*Required if MCP_TRANSPORT=http
+**Note**: RPC host, port, and credentials are auto-detected from blocknet.conf in BLOCKNET_CHAINDIR.
+
+### XBridge MCP Settings (prefix: `XBRIDGE_MCP_`)
+
+| Variable | Default | Required | Description |
+|----------|---------|----------|-------------|
+| `XBRIDGE_MCP_ALLOW_WRITE` | false | No | Enable write operations (use with caution) |
+| `XBRIDGE_MCP_LOG_LEVEL` | INFO | No | Logging level (DEBUG, INFO, WARNING, ERROR) |
+| `XBRIDGE_MCP_TRANSPORT` | http | No | Transport mode: `stdio` or `http` |
+| `XBRIDGE_MCP_PORT` | 8081 | No* | HTTP port (required if TRANSPORT=http) |
+| `XBRIDGE_MCP_HOST` | 0.0.0.0 | No | HTTP bind address |
+
+### XRouter MCP Settings (prefix: `XROUTER_MCP_`)
+
+| Variable | Default | Required | Description |
+|----------|---------|----------|-------------|
+| `XROUTER_MCP_ALLOW_WRITE` | false | No | Enable write operations (use with caution) |
+| `XROUTER_MCP_LOG_LEVEL` | INFO | No | Logging level (DEBUG, INFO, WARNING, ERROR) |
+| `XROUTER_MCP_TRANSPORT` | http | No | Transport mode: `stdio` or `http` |
+| `XROUTER_MCP_PORT` | 8082 | No* | HTTP port (required if TRANSPORT=http) |
+| `XROUTER_MCP_HOST` | 0.0.0.0 | No | HTTP bind address |
 
 ## Build Process
 
@@ -224,7 +250,7 @@ After `docker compose up -d`, verify everything is working:
    ```
    Look for "Server started" or any error messages.
 
-4. **Test MCP servers** (if `MCP_TRANSPORT=http`):
+4. **Test MCP servers** (if `XBRIDGE_MCP_TRANSPORT=http` or `XROUTER_MCP_TRANSPORT=http`):
    ```bash
    # Test XBridge (port 8081)
    SESSION=$(curl -s -X POST http://localhost:8081/mcp \
@@ -300,7 +326,7 @@ For production environments:
             cpus: '0.5'
             memory: 512M
   ```
-- **Logging**: Set `MCP_LOG_LEVEL=WARNING` or `ERROR` to reduce log volume. Use `docker log` driver with rotation or external log aggregation (ELK, Loki).
+- **Logging**: Set `XBRIDGE_MCP_LOG_LEVEL=WARNING` or `XROUTER_MCP_LOG_LEVEL=WARNING` (or `ERROR`) to reduce log volume. Use `docker log` driver with rotation or external log aggregation (ELK, Loki).
 - **Networking**: Host mode is simplest but limits isolation. Consider user-defined bridge networks if you need isolation and can configure `RPC_HOST` accordingly (requires code changes).
 - **Updates**: Pin image tags (`blocknetdx/blocknet:vX.Y.Z`) instead of `latest`. Test updates in staging first.
 - **Monitoring**: Set up health checks for MCP servers (currently only blocknet-core has healthcheck). Consider adding a `/health` endpoint and monitoring ports 8081/8082.
@@ -309,20 +335,27 @@ For production environments:
 
 The MCP servers support two transport modes:
 
-- **stdio** (default): Server communicates via stdin/stdout. Suitable for launching as a subprocess.
+- **http** (default in Docker): Server runs as an HTTP service. Suitable for:
+  - Docker deployments
+  - Network-based MCP clients
+  - Remote access to MCP servers
   ```yaml
   environment:
-    - MCP_TRANSPORT=stdio
+    - XBRIDGE_MCP_TRANSPORT=http
+    - XBRIDGE_MCP_PORT=8081
   ```
 
-- **http**: Server runs as an HTTP service on `MCP_PORT`. Suitable for network-based MCP clients.
+- **stdio**: Server communicates via stdin/stdout. Suitable for:
+  - Local development with subprocess-based MCP clients (e.g., Claude Desktop, OpenCode)
+  - Embedded use cases where the client spawns the server as a child process
   ```yaml
   environment:
-    - MCP_TRANSPORT=http
-    - MCP_PORT=8081  # XBridge; XRouter uses 8082
+    - XBRIDGE_MCP_TRANSPORT=stdio
   ```
 
-The `docker-compose.yml` already sets `MCP_TRANSPORT=http` for both servers. To switch back to stdio, remove those lines or set to `stdio`.
+**Note**: The default in docker-compose.yml is `http` for convenience. Set to `stdio` if your MCP client runs the server as a subprocess.
+
+The `docker-compose.yml` already sets `XBRIDGE_MCP_TRANSPORT=http` and `XROUTER_MCP_TRANSPORT=http`. To switch back to stdio, remove those lines or set to `stdio`.
 
 ## Notes
 
@@ -343,7 +376,7 @@ Create `docker-compose.override.yml` to customize:
 services:
   xbridge-mcp:
     environment:
-      - MCP_LOG_LEVEL=DEBUG
+      - XBRIDGE_MCP_LOG_LEVEL=DEBUG
 ```
 
 Then run:

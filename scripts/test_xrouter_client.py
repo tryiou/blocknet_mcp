@@ -6,6 +6,7 @@ import asyncio
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
+__test__ = False  # Prevent pytest from collecting this standalone test script
 
 async def main():
     url = "http://127.0.0.1:8082/mcp"

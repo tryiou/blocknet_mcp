@@ -19,8 +19,12 @@ dotenv.load_dotenv()
 
 RPC_HOST = os.getenv("RPC_HOST", "localhost")
 RPC_PORT = os.getenv("RPC_PORT", "41414")
-RPC_USER = os.getenv("RPC_USER")
-RPC_PASSWORD = os.getenv("RPC_PASSWORD")
+RPC_TIMEOUT = os.getenv("RPC_TIMEOUT", "30")
+BLOCKNET_CHAINDIR = os.getenv("BLOCKNET_CHAINDIR")
+
+if not BLOCKNET_CHAINDIR:
+    print("Error: BLOCKNET_CHAINDIR not set in .env", file=sys.stderr)
+    sys.exit(1)
 
 
 @dataclass
@@ -177,8 +181,7 @@ async def run_discovery(session, context):
     """Run discovery phase to populate context."""
     print("  Discovery phase...")
 
-    # Set address from RPC_USER
-    context.address = RPC_USER
+    # Address not used in tests
 
     # Discover tokens (most important)
     await discover_tokens(session, context)
@@ -434,15 +437,11 @@ async def test_xbridge_server():
     print("Testing XBridge MCP Server...")
 
     env = {
-        k: v
-        for k, v in {
-            "RPC_HOST": RPC_HOST,
-            "RPC_PORT": RPC_PORT,
-            "RPC_USER": RPC_USER,
-            "RPC_PASSWORD": RPC_PASSWORD,
-            "MCP_ALLOW_WRITE": "false",
-        }.items()
-        if v is not None
+        "RPC_HOST": RPC_HOST,
+        "RPC_PORT": RPC_PORT,
+        "RPC_TIMEOUT": RPC_TIMEOUT,
+        "BLOCKNET_CHAINDIR": BLOCKNET_CHAINDIR,
+        "XBRIDGE_MCP_ALLOW_WRITE": "false",
     }
 
     server_params = StdioServerParameters(command="python", args=["-m", "generated.xbridge_mcp.main"], env=env)
@@ -456,7 +455,7 @@ async def test_xbridge_server():
             print(f"  Available tools: {len(tools.tools)}")
 
             # Discovery phase
-            context = TestContext(address=RPC_USER)
+            context = TestContext()
             await run_discovery(session, context)
 
             # Run tests
@@ -471,15 +470,11 @@ async def test_xrouter_server():
     print("\nTesting XRouter MCP Server...")
 
     env = {
-        k: v
-        for k, v in {
-            "RPC_HOST": RPC_HOST,
-            "RPC_PORT": RPC_PORT,
-            "RPC_USER": RPC_USER,
-            "RPC_PASSWORD": RPC_PASSWORD,
-            "MCP_ALLOW_WRITE": "false",
-        }.items()
-        if v is not None
+        "RPC_HOST": RPC_HOST,
+        "RPC_PORT": RPC_PORT,
+        "RPC_TIMEOUT": RPC_TIMEOUT,
+        "BLOCKNET_CHAINDIR": BLOCKNET_CHAINDIR,
+        "XROUTER_MCP_ALLOW_WRITE": "false",
     }
 
     server_params = StdioServerParameters(command="python", args=["-m", "generated.xrouter_mcp.main"], env=env)
@@ -492,8 +487,8 @@ async def test_xrouter_server():
             tools = await session.list_tools()
             print(f"  Available tools: {len(tools.tools)}")
 
-            # Discovery phase (reuse context from XBridge if available)
-            context = TestContext(address=RPC_USER, block_chain="BLOCK")
+            # Discovery phase
+            context = TestContext(block_chain="BLOCK")
             # For XRouter, we need block data; try to get it
             await discover_block_data(session, context)
             if context.block_height:
@@ -508,8 +503,8 @@ async def test_xrouter_server():
 
 async def main():
     """Run comprehensive test suite."""
-    if not all([RPC_USER, RPC_PASSWORD]):
-        print("Error: RPC credentials not set in .env", file=sys.stderr)
+    if not BLOCKNET_CHAINDIR:
+        print("Error: BLOCKNET_CHAINDIR not set in .env", file=sys.stderr)
         sys.exit(1)
 
     try:

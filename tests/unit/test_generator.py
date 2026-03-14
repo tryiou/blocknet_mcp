@@ -54,8 +54,6 @@ class TestBuildServerConfig:
         assert config["client_class_name"] == "AsyncXBridgeClient"
         assert config["tool_prefix"] == "dx"
         assert config["rpc_prefix"] == "dx"
-        assert config["host"] == "localhost"
-        assert config["port"] == 41414
 
     def test_build_server_config_xr(self):
         gen = Generator("path/to/docs.md", "xr", "/tmp/output")

@@ -127,6 +127,22 @@ cd docker
 # Use --env-file to point to .env in parent directory
 ENV_FILE="../.env"
 
+# Pre-create BLOCKNET_CHAINDIR with correct ownership to avoid Docker creating it as root
+if [[ -f "$ENV_FILE" ]]; then
+	BLOCKNET_CHAINDIR=$(grep "^BLOCKNET_CHAINDIR=" "$ENV_FILE" | cut -d'=' -f2-)
+	if [[ -n "$BLOCKNET_CHAINDIR" && ! -d "$BLOCKNET_CHAINDIR" ]]; then
+		log_info "Creating BLOCKNET_CHAINDIR: $BLOCKNET_CHAINDIR"
+		mkdir -p "$BLOCKNET_CHAINDIR"
+		chown 1000:1000 "$BLOCKNET_CHAINDIR"
+	elif [[ -n "$BLOCKNET_CHAINDIR" && -d "$BLOCKNET_CHAINDIR" ]]; then
+		OWNER=$(stat -c '%u' "$BLOCKNET_CHAINDIR" 2>/dev/null || echo "0")
+		if [[ "$OWNER" != "1000" ]]; then
+			log_warn "BLOCKNET_CHAINDIR is not owned by uid 1000, fixing..."
+			chown 1000:1000 "$BLOCKNET_CHAINDIR"
+		fi
+	fi
+fi
+
 case "$ACTION" in
 build)
 	log_info "Building Docker images..."

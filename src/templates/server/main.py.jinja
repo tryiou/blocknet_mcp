@@ -1,12 +1,15 @@
 """{{ server.display_name }} MCP Server - Main Entry Point"""
 
 import sys
+import time
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import asyncio
 
 from mcp.server.fastmcp import FastMCP
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
 
 from {{ server.package_name }}.config import get_settings
 from {{ server.package_name }}.logging_config import setup_logging, get_logger
@@ -18,7 +21,74 @@ from {{ server.package_name }}.security import init_security
 # Global client instance
 _{{ server.env_prefix.lower() }}_client: {{ rpc.client_class_name }} | None = None
 _logger = None
+_config_observer: Observer | None = None
+_main_event_loop: asyncio.AbstractEventLoop | None = None
 
+
+class ConfigFileHandler(FileSystemEventHandler):
+    """Handler for blocknet.conf file changes."""
+
+    def __init__(self, settings, client):
+        self.settings = settings
+        self.client = client
+        self._last_reload = 0.0
+        self._debounce_seconds = 0.5
+
+    def on_modified(self, event):
+        if event.is_directory:
+            return
+
+        conf_path = self.settings.conf_file_path
+        if not conf_path:
+            return
+
+        if Path(event.src_path).resolve() != conf_path.resolve():
+            return
+
+        now = time.time()
+        if now - self._last_reload < self._debounce_seconds:
+            return
+
+        self._last_reload = now
+
+        try:
+            changed = self.settings.reload()
+            if changed and _main_event_loop:
+                asyncio.run_coroutine_threadsafe(
+                    self.client.update_credentials(
+                        self.settings.effective_user,
+                        self.settings.effective_password,
+                    ),
+                    _main_event_loop,
+                )
+                _logger.info("blocknet.conf changed - credentials updated")
+        except Exception as e:
+            _logger.error("Failed to reload blocknet.conf: %s", e)
+
+
+def start_config_watcher(settings, client):
+    """Start watching blocknet.conf for changes."""
+    global _config_observer
+
+    conf_path = settings.conf_file_path
+    if not conf_path or not conf_path.exists():
+        _logger.info("blocknet.conf not found, config watcher disabled")
+        return
+
+    handler = ConfigFileHandler(settings, client)
+    _config_observer = Observer()
+    _config_observer.schedule(handler, str(conf_path.parent), recursive=False)
+    _config_observer.start()
+    _logger.info("Config watcher started", conf_file=str(conf_path))
+
+
+def stop_config_watcher():
+    """Stop the config file watcher."""
+    global _config_observer
+    if _config_observer:
+        _config_observer.stop()
+        _config_observer.join()
+        _config_observer = None
 
 
 def get_client() -> {{ rpc.client_class_name }}:
@@ -37,14 +107,14 @@ async def init_client() -> None:
     
     if not rpc_settings.is_configured:
         raise ValueError(
-            "{{ server.display_name }} RPC not configured. Set {{ server.env_prefix }}_RPC_USER and {{ server.env_prefix }}_RPC_PASSWORD "
-            "environment variables or create a .env file."
+            "{{ server.display_name }} RPC not configured. Set BLOCKNET_CHAINDIR to point to "
+            "your blocknet chaindir containing blocknet.conf with rpcuser/rpcpassword."
         )
     
     _{{ server.env_prefix.lower() }}_client = {{ rpc.client_class_name }}(
         rpc_url=rpc_settings.full_url,
-        rpc_user=rpc_settings.rpc_user,
-        rpc_password=rpc_settings.rpc_password,
+        rpc_user=rpc_settings.effective_user,
+        rpc_password=rpc_settings.effective_password,
         timeout=rpc_settings.rpc_timeout,
     )
     
@@ -98,7 +168,9 @@ def create_mcp_server() -> FastMCP:
 
 async def run_server() -> None:
     """Run the MCP server"""
-    global _logger
+    global _logger, _main_event_loop
+    
+    _main_event_loop = asyncio.get_running_loop()
     
     rpc_settings, mcp_settings = get_settings()
     
@@ -115,6 +187,10 @@ async def run_server() -> None:
     # Initialize clients
     await init_client()
     
+    # Start config file watcher
+    client = get_client()
+    start_config_watcher(rpc_settings, client)
+    
     # Create MCP server
     mcp = create_mcp_server()
     
@@ -127,6 +203,7 @@ async def run_server() -> None:
             _logger.info("Starting stdio transport")
             await mcp.run_stdio_async()
     finally:
+        stop_config_watcher()
         await cleanup_client()
 
 

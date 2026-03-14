@@ -47,7 +47,7 @@ def write_protected(func: Callable) -> Callable:
             )
             raise PermissionError(
                 f"Write operations are disabled. "
-                f"Set MCP_ALLOW_WRITE=true to enable {func.__name__}."
+                f"Set {{ server.env_prefix }}_ALLOW_WRITE=true to enable {func.__name__}."
             )
         return await func(*args, **kwargs)
     return wrapper

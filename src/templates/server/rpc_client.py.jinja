@@ -24,7 +24,7 @@ class {{ rpc.client_class_name }}:
         rpc_url: str,
         rpc_user: str,
         rpc_password: str,
-        timeout: int = {{ server.timeout }},
+        timeout: int = 30,
     ):
         self.rpc_url = rpc_url
         self.rpc_user = rpc_user
@@ -56,6 +56,22 @@ class {{ rpc.client_class_name }}:
             await self._client.aclose()
             self._client = None
             logger.info("Disconnected from RPC")
+
+    async def update_credentials(self, rpc_user: str, rpc_password: str) -> None:
+        """Update RPC credentials and recreate the HTTP client."""
+        self.rpc_user = rpc_user
+        self.rpc_password = rpc_password
+
+        if self._client:
+            await self._client.aclose()
+
+        auth = httpx.BasicAuth(self.rpc_user, self.rpc_password)
+        self._client = httpx.AsyncClient(
+            auth=auth,
+            base_url=self.rpc_url,
+            timeout=httpx.Timeout(self.timeout),
+        )
+        logger.info("RPC credentials updated", url=self.rpc_url)
     
     async def call(self, method: str, params: list = None) -> Any:
         """

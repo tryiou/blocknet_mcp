@@ -235,10 +235,6 @@ class MarkdownParser:
 
         return list(sections_dict.values())
 
-    def _is_endpoint_header(self, name: str) -> bool:
-        """Check if header is an endpoint (not a section header)"""
-        return name.lower().startswith(self.rpc_prefix)
-
     def _parse_endpoint(self, section: str) -> EndpointSpec | None:
         """Parse a single endpoint section"""
         # Extract RPC method name from header
@@ -248,12 +244,9 @@ class MarkdownParser:
 
         rpc_method = header_match.group(1)
 
-        # Convert to tool name (e.g., dxMakeOrder -> dx_make_order)
-        tool_name = self._to_tool_name(rpc_method)
-
         endpoint = EndpointSpec(
             rpc_method=rpc_method,
-            tool_name=tool_name,
+            tool_name=rpc_method,
         )
 
         # Extract main description (first paragraph after code block)
@@ -517,9 +510,9 @@ class MarkdownParser:
 
         return codes
 
-    def _to_tool_name(self, rpc_method: str) -> str:
-        """Convert RPC method name to MCP tool name (preserve original)"""
-        return rpc_method
+    def get_error_codes(self) -> dict[int, str]:
+        """Public method to get error codes from the parsed content."""
+        return self._parse_error_codes()
 
 
 def parse_api_docs(doc_path: str, rpc_prefix: str) -> ApiSpec:
@@ -536,7 +529,7 @@ def parse_api_docs(doc_path: str, rpc_prefix: str) -> ApiSpec:
         if errors_path.exists():
             error_parser = MarkdownParser(str(errors_path), rpc_prefix)
             error_parser.load()
-            global_errors = error_parser._parse_error_codes()
+            global_errors = error_parser.get_error_codes()
             spec.error_codes.update(global_errors)
 
     return spec
