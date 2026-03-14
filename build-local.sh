@@ -86,9 +86,9 @@ echo "[5/7] Checking configuration..."
 if [ ! -f ".env" ]; then
 	echo "ERROR: .env file not found!"
 	echo
-	echo "Please create a .env file with your RPC credentials:"
-	echo "  cp .env.example .env"
-	echo "  # Edit .env and set RPC_HOST, RPC_PORT, RPC_USER, RPC_PASSWORD"
+	echo "Please create a .env file with BLOCKNET_CHAINDIR:"
+	echo "  cp config/.env.example .env"
+	echo "  # Edit .env and set BLOCKNET_CHAINDIR to your blocknet data directory"
 	echo
 	exit 1
 fi

@@ -6,4 +6,5 @@ xr:
   - xrService
   - xrServiceConsensus
 
-dx: []
+dx: 
+  - dxGetLockedUtxos

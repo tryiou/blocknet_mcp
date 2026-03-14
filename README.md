@@ -4,14 +4,11 @@
 [![MCP Protocol](https://img.shields.io/badge/MCP-Model_Context_Protocol-green.svg)](https://modelcontextprotocol.io)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
 
-A code generator that creates Model Context Protocol (MCP) servers for Blocknet's XBridge and XRouter APIs from markdown
-documentation.
+A code generator that creates Model Context Protocol (MCP) servers for Blocknet's XBridge and XRouter APIs from markdown documentation.
 
 ## Overview
 
-This tool generates fully-functional MCP servers that expose Blocknet's decentralized exchange (XBridge) and routing (
-XRouter) functionality to AI assistants and other MCP clients. It parses Blocknet's API documentation and automatically
-generates:
+This tool generates fully-functional MCP servers that expose Blocknet's decentralized exchange (XBridge) and routing (XRouter) functionality to AI assistants and other MCP clients. It parses Blocknet's API documentation and automatically generates:
 
 - Type-safe Python MCP servers using FastMCP
 - Async RPC clients with proper error handling
@@ -27,13 +24,27 @@ generates:
 - **Automatic Code Generation**: Parse markdown API docs and generate complete MCP servers
 - **Type Safety**: Full Pydantic v2 validation and type hints
 - **Async/Await**: Built on asyncio for high-performance I/O
-- **Write Protection**: Sensitive operations are flagged and can be disabled via `MCP_ALLOW_WRITE`. The list of
-  protected RPC methods is defined in `src/write_protected.yaml` and can be customized.
-- **Preserved Endpoints**: Certain endpoints can be preserved from commented-out sections in API docs. Configured via
-  `src/preserved_endpoints.yaml`.
+- **Write Protection**: Sensitive operations are flagged and can be disabled via `XBRIDGE_MCP_ALLOW_WRITE` or `XROUTER_MCP_ALLOW_WRITE`. The list of protected RPC methods is defined in `src/write_protected.yaml` and can be customized.
+- **Preserved Endpoints**: Certain endpoints can be preserved from commented-out sections in API docs. Configured via `src/preserved_endpoints.yaml`.
 - **Structured Logging**: Uses structlog for observability
 - **Test Generation**: Auto-generates integration tests from sample requests
- - **Security First**: No hardcoded credentials, environment-based config
+- **Security First**: No hardcoded credentials, environment-based config
+
+## Prerequisites
+
+- Python 3.10 or higher
+- Access to a Blocknet node with RPC enabled
+- Basic understanding of MCP protocol (see [MCP documentation](https://modelcontextprotocol.io))
+
+### Pre-generation Checklist
+
+Before generating MCP servers, ensure:
+
+- [ ] Python 3.10+ is installed (`python --version`)
+- [ ] A `.env` file exists with `BLOCKNET_CHAINDIR` pointing to your blocknet data directory
+- [ ] A Blocknet node is running with RPC enabled (`server=1` in config)
+- [ ] The `blocknet-api-docs/` directory exists (cloned automatically by `build-local.sh` or manually)
+- [ ] Required ports are available (41414 for RPC, 8081/8082 for MCP servers if using HTTP transport)
 
 ## Quick Start
 
@@ -42,7 +53,7 @@ generates:
 The `build-local.sh` script automates everything:
 
 ```bash
-# Prerequisite: configure .env first (see below)
+# Prerequisite: configure .env first (see Configuration)
 ./build-local.sh
 ```
 
@@ -52,10 +63,6 @@ The script will:
 - Install dependencies
 - Clone or update the Blocknet API docs
 - Generate both XBridge and XRouter MCP servers
-
-**Important**: You must have a `.env` file with valid RPC credentials before running `build-local.sh`.
-
-### Manual Setup
 
 ### Docker Deployment
 
@@ -82,18 +89,7 @@ docker compose ps
 docker compose logs -f xbridge-mcp
 ```
 
-**Note**: Docker images are built automatically on first `docker compose up`. See DOCKER.md for detailed configuration,
-troubleshooting, and production deployment guidance.
-
-### Pre-generation Checklist
-
-Before generating MCP servers, ensure:
-
-- [ ] Python 3.10+ is installed (`python --version`)
-- [ ] A `.env` file exists with valid `RPC_USER` and `RPC_PASSWORD`
-- [ ] A Blocknet node is running with RPC enabled (`server=1` in config)
-- [ ] The `blocknet-api-docs/` directory exists (cloned automatically by `build-local.sh` or manually)
-- [ ] Required ports are available (41414 for RPC, 8080/8081/8082 for MCP servers if using HTTP transport)
+**Note**: Docker images are built automatically on first `docker compose up`. See DOCKER.md for detailed configuration, troubleshooting, and production deployment guidance.
 
 ### Manual Setup
 
@@ -118,23 +114,75 @@ cp config/.env.example .env
 # Edit .env with your RPC credentials
 ```
 
-## Prerequisites
+## Configuration
 
-- Python 3.10 or higher
-- Access to a Blocknet node with RPC enabled
-- Basic understanding of MCP protocol (see [MCP documentation](https://modelcontextprotocol.io))
+### Environment Variables
 
-## Installation
-
-Clone the repository and set up the environment:
+Create a `.env` file in the project root:
 
 ```bash
-git clone <repository-url>
-cd blocknet-mcp-server
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+# Blockchain data directory (REQUIRED)
+# Credentials are read from blocknet.conf (rpcuser, rpcpassword)
+# Port is also auto-detected from blocknet.conf if present
+BLOCKNET_CHAINDIR=~/.blocknet/
+
+# XBridge MCP Server Configuration
+XBRIDGE_MCP_LOG_LEVEL=INFO
+XBRIDGE_MCP_ALLOW_WRITE=false  # Set to true only for trusted environments
+XBRIDGE_MCP_TRANSPORT=http     # Transport mode: stdio (subprocess) or http (network)
+XBRIDGE_MCP_PORT=8081          # Port for HTTP transport
+
+# XRouter MCP Server Configuration
+XROUTER_MCP_LOG_LEVEL=INFO
+XROUTER_MCP_ALLOW_WRITE=false  # Set to true only for trusted environments
+XROUTER_MCP_TRANSPORT=http     # Transport mode: stdio (subprocess) or http (network)
+XROUTER_MCP_PORT=8082          # Port for HTTP transport
 ```
+
+**Hot Reload**: The MCP server watches `blocknet.conf` for changes. If you modify the file while the server is running (e.g., changing rpcuser/rpcpassword), the server will automatically reload the new credentials without restart.
+
+> **Note**: Hot reload only works when running locally. In Docker containers, the file watcher cannot detect changes to bind-mounted files. Restart the container to apply configuration changes.
+
+Example client configurations are provided:
+
+- **opencode**: `config/example.local.opencode.json` (local) and `config/example.docker.opencode.json` (Docker/remote)
+
+See these files for exact configurations. Set environment variables (RPC credentials, etc.) via `.env` or system environment before launching.
+
+### Generated Server Configuration
+
+Each generated server includes its own `config.py` that loads settings from environment variables. The server name, port, and other parameters can be customized by editing the generated config or setting the appropriate environment variables.
+
+**Important Security Note**: `XBRIDGE_MCP_ALLOW_WRITE=false` or `XROUTER_MCP_ALLOW_WRITE=false` prevents write operations (orders, transactions, config changes). Enable only when you understand the risks.
+
+### Write-Protected Methods
+
+The generator uses `src/write_protected.yaml` to define which RPC methods are considered write-protected. These methods will be decorated with `@write_protected` in the generated server and require `XBRIDGE_MCP_ALLOW_WRITE=true` or `XROUTER_MCP_ALLOW_WRITE=true` to execute.
+
+To list the current protected methods:
+
+```bash
+python main.py --list-protected
+```
+
+To customize, edit `src/write_protected.yaml`. The YAML file should contain a mapping of prefixes (`dx`, `xr`) to lists of RPC method names. If the file is missing or invalid, the generator falls back to built-in defaults. Unknown method names (typos, outdated docs) will trigger a warning during generation.
+
+### Preserved Endpoints
+
+Sometimes API documentation contains endpoints that are commented out (within HTML `<!-- -->` blocks). These are typically endpoints not yet ready for public release. By default, the parser removes all HTML comments and excludes those endpoints from the generated server.
+
+To preserve specific endpoints from commented sections, add them to `src/preserved_endpoints.yaml`:
+
+```yaml
+# Preserved Endpoints Configuration
+xr:
+  - xrService
+  - xrServiceConsensus
+```
+
+The YAML file maps prefixes (`dx`, `xr`) to lists of endpoint names to preserve. During parsing, these endpoints are extracted from comments before removal and re-inserted into the parsed content. The generator will then create MCP tools for these endpoints.
+
+**Note**: Preserved endpoints still appear with the `@write_protected` decorator if they are also in `write_protected.yaml`.
 
 ## Usage
 
@@ -208,82 +256,22 @@ Options:
   --help                    Show help message
 ```
 
-## Configuration
+## Docker Deployment
 
-### Environment Variables
+For detailed Docker configuration, troubleshooting, and production deployment guidance, see [DOCKER.md](docker/DOCKER.md).
 
-Create a `.env` file in the project root:
-
-```bash
- # RPC Connection (required)
-  RPC_HOST=localhost
-  RPC_PORT=41414
-  RPC_USER=your_rpc_user
-  RPC_PASSWORD=your_rpc_password
- RPC_TIMEOUT=30
-
- # Blockchain data directory (volume mount for Docker blocknet-core container)
- BLOCKNET_CHAINDIR=~/.blocknet/
-
- # MCP Server Configuration
-  MCP_LOG_LEVEL=INFO
-  MCP_ALLOW_WRITE=false  # Set to true only for trusted environments
-  MCP_TRANSPORT=stdio    # Transport mode: stdio or http
-  MCP_PORT=8081          # Port for HTTP transport (8081 for XBridge, 8082 for XRouter)
- ```
-
-Example client configurations are provided:
-
-- **opencode**: `config/example.local.opencode.json` (local) and `config/example.docker.opencode.json` (Docker/remote)
-
-See these files for exact configurations. Set environment variables (RPC credentials, etc.) via `.env` or system environment before launching.
-
-### Generated Server Configuration
-
-Each generated server includes its own `config.py` that loads settings from environment variables. The server name,
-port, and other parameters can be customized by editing the generated config or setting the appropriate environment
-variables.
-
-**Important Security Note**: `MCP_ALLOW_WRITE=false` prevents write operations (orders, transactions, config changes).
-Enable only when you understand the risks.
-
-### Write-Protected Methods
-
-The generator uses `src/write_protected.yaml` to define which RPC methods are considered write-protected.
-These methods will be decorated with `@write_protected` in the generated server and require `MCP_ALLOW_WRITE=true` to
-execute.
-
-To list the current protected methods:
+### Quick Reference
 
 ```bash
-python main.py --list-protected
+# Build and start services
+./build-docker.sh --all --up
+
+# View logs
+./build-docker.sh --logs --follow
+
+# Stop services
+./build-docker.sh --down
 ```
-
-To customize, edit `src/write_protected.yaml`. The YAML file should contain a mapping of prefixes (`dx`,
-`xr`) to lists of RPC method names. If the file is missing or invalid, the generator falls back to built-in defaults.
-Unknown method names (typos, outdated docs) will trigger a warning during generation.
-
-### Preserved Endpoints
-
-Sometimes API documentation contains endpoints that are commented out (within HTML `<!-- -->` blocks). These are
-typically endpoints not yet ready for public release. By default, the parser removes all HTML comments and excludes
-those endpoints from the generated server.
-
-To preserve specific endpoints from commented sections, add them to `src/preserved_endpoints.yaml`:
-
-```yaml
-# Preserved Endpoints Configuration
-xr:
-  - xrService
-  - xrServiceConsensus
-```
-
-The YAML file maps prefixes (`dx`, `xr`) to lists of endpoint names to preserve. During parsing, these endpoints are
-extracted from comments before removal and re-inserted into the parsed content. The generator will then create MCP
-tools for these endpoints.
-
-**Note**: Preserved endpoints still appear with the `@write_protected` decorator if they are also in
-`write_protected.yaml`.
 
 ## Architecture
 
@@ -305,17 +293,16 @@ API Documentation (Markdown)
 
 ### Key Components
 
-- **`parser.py`**: Generic markdown parser that extracts endpoints, parameters, and error codes from Blocknet-style
-  documentation
+- **`parser.py`**: Generic markdown parser that extracts endpoints, parameters, and error codes from Blocknet-style documentation
 - **`generator.py`**: Orchestrates code generation, builds configuration, and writes files
 - **`templates/`**: Jinja2 templates for server components:
-    - `server/main.py.jinja` - Entry point with MCP server setup
-    - `server/config.py.jinja` - Configuration management
-    - `server/rpc_client.py.jinja` - Async RPC client
-    - `server/security.py.jinja` - Write protection decorator
-    - `server/logging_config.py.jinja` - Structured logging
-    - `tools/tools.py.jinja` - MCP tool functions
-    - `tests/` - Test templates
+  - `server/main.py.jinja` - Entry point with MCP server setup
+  - `server/config.py.jinja` - Configuration management
+  - `server/rpc_client.py.jinja` - Async RPC client
+  - `server/security.py.jinja` - Write protection decorator
+  - `server/logging_config.py.jinja` - Structured logging
+  - `tools/tools.py.jinja` - MCP tool functions
+  - `tests/` - Test templates
 
 ### Data Models
 
@@ -413,10 +400,7 @@ pytest tests/integration
 
 Integration tests verify generated code structure and basic functionality without a live node.
 
-> **Note on Test Layout**: The `generated/tests/` directory (shown in the Project Structure) contains **auto-generated**
-> integration tests that are created each time you run `python main.py`. These tests exercise the generated server code.
-> The `tests/` directory at the repository root contains **manual** unit and integration tests for the generator itself
-> (`parser.py`, `generator.py`). Both are important but serve different purposes.
+> **Note on Test Layout**: The `generated/tests/` directory (shown in the Project Structure) contains **auto-generated** integration tests that are created each time you run `python main.py`. These tests exercise the generated server code. The `tests/` directory at the repository root contains **manual** unit and integration tests for the generator itself (`parser.py`, `generator.py`). Both are important but serve different purposes.
 
 ### Live Testing
 
@@ -430,7 +414,7 @@ python tests/test_live.py
 
 - Running Blocknet node with RPC access
 - `.env` file with valid credentials
-- `MCP_ALLOW_WRITE=false` (default) for read-only tests
+- `XBRIDGE_MCP_ALLOW_WRITE=false` or `XROUTER_MCP_ALLOW_WRITE=false` (default) for read-only tests
 
 The script:
 
@@ -501,16 +485,14 @@ def generate_server(prefix: str, doc_path: str | None = None) -> None:
 ### Adding New API Endpoints
 
 1. Update the appropriate markdown file in `blocknet-api-docs/source/includes/`:
-    - `_xbridge.md` for XBridge endpoints
-    - `_xrouter.md` for XRouter endpoints
+   - `_xbridge.md` for XBridge endpoints
+   - `_xrouter.md` for XRouter endpoints
 2. Follow the existing format: `## MethodName`, description, `### Request Parameters` table, samples
 3. Regenerate: `python main.py dx` (or `xr`)
 4. Review generated code in `generated/`
 5. Run tests: `pytest` and `python tests/test_live.py`
 
-> **Note**: If an endpoint is commented out in the API documentation (within `<!-- -->`), it won't appear in
-> the generated server by default. To preserve specific commented endpoints, add them to
-> `src/preserved_endpoints.yaml` and regenerate. See [Preserved Endpoints](#preserved-endpoints) for details.
+> **Note**: If an endpoint is commented out in the API documentation (within `<!-- -->`), it won't appear in the generated server by default. To preserve specific commented endpoints, add them to `src/preserved_endpoints.yaml` and regenerate. See [Preserved Endpoints](#preserved-endpoints) for details.
 
 ### Regenerating After Documentation Changes
 
@@ -521,15 +503,15 @@ rm -rf generated/
 # Regenerate
 python main.py ALL
 
- # Verify
- pytest
+# Verify
+pytest
+```
 
 ## Security Considerations
 
 ### Write Protection
 
-Write operations are guarded by the `@write_protected` decorator. The generated server initializes security at startup
-and checks `MCP_ALLOW_WRITE` at runtime:
+Write operations are guarded by the `@write_protected` decorator. The generated server initializes security at startup and checks `XBRIDGE_MCP_ALLOW_WRITE` or `XROUTER_MCP_ALLOW_WRITE` at runtime:
 
 ```python
 # In generated/security.py
@@ -555,13 +537,13 @@ def write_protected(func: Callable) -> Callable:
         if not is_write_allowed():
             raise PermissionError(
                 f"Write operations are disabled. "
-                f"Set MCP_ALLOW_WRITE=true to enable {func.__name__}."
+                f"Set XBRIDGE_MCP_ALLOW_WRITE=true or XROUTER_MCP_ALLOW_WRITE=true to enable {func.__name__}."
             )
         return await func(*args, **kwargs)
     return wrapper
 ```
 
-Protected tools are decorated with `@write_protected` and require `MCP_ALLOW_WRITE=true` to execute.
+Protected tools are decorated with `@write_protected` and require `XBRIDGE_MCP_ALLOW_WRITE=true` or `XROUTER_MCP_ALLOW_WRITE=true` to execute.
 
 Protected tools include:
 
@@ -569,8 +551,7 @@ Protected tools include:
 
 **XRouter**: None
 
-> **Note**: This list is defined in `src/write_protected.yaml` and can be customized. The generator
-> validates that protected methods exist in the API documentation and warns about unknown entries.
+> **Note**: This list is defined in `src/write_protected.yaml` and can be customized. The generator validates that protected methods exist in the API documentation and warns about unknown entries.
 
 ### Credential Management
 
@@ -581,16 +562,15 @@ Protected tools include:
 
 ### Read-Only Testing
 
-Always test with `MCP_ALLOW_WRITE=false` unless explicitly testing write operations in a safe environment.
+Always test with `XBRIDGE_MCP_ALLOW_WRITE=false` or `XROUTER_MCP_ALLOW_WRITE=false` unless explicitly testing write operations in a safe environment.
 
 ## Troubleshooting
 
 ### "RPC client not initialized"
 
-**Cause**: Server started without proper RPC configuration.
+**Cause**: Server started without BLOCKNET_CHAINDIR configured.
 
-**Solution**: Check `.env` file exists and contains `RPC_USER` and `RPC_PASSWORD`. The server validates these on
-startup.
+**Solution**: Check `.env` file exists and contains `BLOCKNET_CHAINDIR` pointing to your blocknet data directory. The server auto-detects credentials from blocknet.conf.
 
 ### "Connection error" or timeout
 
@@ -598,7 +578,7 @@ startup.
 
 **Solution**:
 
-- Verify node is running: `curl http://RPC_USER:RPC_PASSWORD@RPC_HOST:RPC_PORT/`
+- Verify node is running: `blocknet-cli getblockcount`
 - Check `RPC_HOST` and `RPC_PORT` in `.env`
 - Ensure RPC server is enabled in node config (`server=1`)
 
@@ -620,28 +600,26 @@ The parser expects `### Request Parameters` section with a table.
 
 **Cause**: Tool function names must start with the prefix (`dx` or `xr`).
 
-**Solution**: Check that the markdown method names start with the correct prefix (e.g., `dxGetOrders`). The parser
-filters endpoints by prefix.
+**Solution**: Check that the markdown method names start with the correct prefix (e.g., `dxGetOrders`). The parser filters endpoints by prefix.
 
-### Tests fail with "Expected dict, got str"
+### Tests fail with "Expected dict, got Str"
 
 **Cause**: The RPC returned an error message instead of expected data.
 
-**Solution**: Check RPC credentials have permission for that endpoint. Some RPC methods require specific account
-balances or node configuration.
+**Solution**: Check RPC credentials have permission for that endpoint. Some RPC methods require specific account balances or node configuration.
 
 ### Import errors when running generated server
 
 **Cause**: Python path issues.
 
-**Solution**: The generated server includes `sys.path.insert(0, str(Path(__file__).parent.parent))` to handle package
-imports. Run from the project root or ensure the package structure is intact.
+**Solution**: The generated server includes `sys.path.insert(0, str(Path(__file__).parent.parent))` to handle package imports. Run from the project root or ensure the package structure is intact.
 
 ### "Permission denied on .env"
 
 **Cause**: The `.env` file has restrictive permissions or the server cannot read it.
 
 **Solution**: Ensure the `.env` file is readable by the user running the server:
+
 ```bash
 chmod 600 .env  # Read/write for owner only
 ```
@@ -662,20 +640,20 @@ chmod 600 .env  # Read/write for owner only
 
 **Solution**:
 - Verify the server process is running
-- Check `MCP_TRANSPORT` setting matches your client's expectation (stdio vs http)
+- Check `XBRIDGE_MCP_TRANSPORT` or `XROUTER_MCP_TRANSPORT` setting matches your client's expectation (stdio vs http)
 - For stdio mode, ensure the client can launch the server subprocess
-- For http mode, verify `MCP_PORT` is correct and the port is available
+- For http mode, verify `XBRIDGE_MCP_PORT` or `XROUTER_MCP_PORT` is correct and the port is available
 
 ### "Port already in use"
 
-**Cause**: Another process is using the configured port (default: 41414 for RPC, 8080/8081/8082 for HTTP MCP).
+**Cause**: Another process is using the configured port (default: 41414 for RPC, 8081/8082 for HTTP MCP).
 
 **Solution**:
 ```bash
 # Find process using the port
 sudo lsof -i :8081
 
-# Either stop that process or change MCP_PORT in .env
+# Either stop that process or change XBRIDGE_MCP_PORT or XROUTER_MCP_PORT in .env
 # For Docker, also check container ports: docker ps
 ```
 
@@ -685,7 +663,7 @@ Contributions welcome! Please follow these guidelines:
 
 1. **Code Style**: Run `ruff format .` and `ruff check .` before committing
 2. **Tests**: Add unit tests for parser/generator changes; integration tests for new endpoints
-3. **Documentation**: Update README if user-facing behavior changes
+3. **Documentation**: Update README and DOCKER.md if user-facing behavior changes
 4. **Type Hints**: Complete type annotations required
 5. **Docstrings**: All public APIs must be documented
 
@@ -703,7 +681,7 @@ ruff check .
 pytest
 
 # Live test (if applicable)
-MCP_ALLOW_WRITE=false python tests/test_live.py
+XBRIDGE_MCP_ALLOW_WRITE=false XROUTER_MCP_ALLOW_WRITE=false python tests/test_live.py
 
 # Commit and push
 git add .
@@ -718,7 +696,7 @@ MIT License - see LICENSE file for details.
 ## Related Links
 
 - [Model Context Protocol](https://modelcontextprotocol.io) - MCP specification and documentation
-- [Blocknet Documentation](https://docs.blocknet.org) 
+- [Blocknet Documentation](https://docs.blocknet.org)
 - [Blocknet API Reference](https://api.blocknet.org)
 - [FastMCP](https://github.com/modelcontextprotocol/python-sdk) - Python MCP SDK
 - [Blocknet GitHub](https://github.com/BlocknetDX) - Blocknet source code
@@ -727,9 +705,8 @@ MIT License - see LICENSE file for details.
 
 - **Issues**: Report bugs and request features via GitHub Issues
 - **Discussions**: Join the conversation via GitHub Discussions
-- **Blocknet Community**: [Discord](https://discord.gg/F3h327UQ) 
+- **Blocknet Community**: [Discord](https://discord.gg/F3h327UQ)
 
 ---
 
-**Note**: This is an unofficial MCP integration for Blocknet. It is not affiliated with or endorsed by the Blocknet
-team. Use at your own risk. Always test in a safe environment before using with mainnet funds.
+**Note**: This is an unofficial MCP integration for Blocknet. It is not affiliated with or endorsed by the Blocknet team. Use at your own risk. Always test in a safe environment before using with mainnet funds.
